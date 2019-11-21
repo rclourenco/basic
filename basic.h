@@ -131,8 +131,14 @@ typedef struct {
 	BasExpressionList *list;
 } BasPrintNode;
 
+typedef struct BasVarList {
+	char var[MLEN];
+	struct BasVarList *next;
+} BasVarList;
+
 typedef struct {
-	BasExpressionList *list;
+	char prompt[256];
+	BasVarList *list;
 } BasInputNode;
 
 typedef struct {

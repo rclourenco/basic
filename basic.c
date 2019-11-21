@@ -53,8 +53,21 @@ BasNode *BasInputNodeCreate(BasNode **link)
 	BasInputNode *n=(BasInputNode *)malloc(sizeof(BasInputNode));
 	if(!n)
 		return NULL;
-
+	n->prompt[0]='\0';
+	n->list=NULL;
 	return BasNodeCreate(link, BAS_INPUT, n);
+}
+
+BasVarList *BasVarListAdd(BasVarList **link, char *var)
+{
+	BasVarList *n = (BasVarList *)malloc(sizeof(BasVarList));
+	if (!n)
+		return NULL;
+	strncpy(n->var,var,MLEN-1);
+	n->var[MLEN-1]='\0';
+	n->next=NULL;
+	*link = n;
+	return n;
 }
 
 BasNode *BasAssignmentNodeCreate(BasNode **link)
@@ -240,11 +253,54 @@ int BuildPrintBlock(BasNode *n, BasTokenizer *tokenizer)
 
 int BuildInputBlock(BasNode *n, BasTokenizer *tokenizer)
 {
+	BasInputNode *f = (BasInputNode *)n->data;
 	BasToken *t;
 
-	do {
-		t=bas_token_get(tokenizer);
-	} while (t && t->type != TOKEN_LINE);
+	t=bas_token_get(tokenizer);
+	if (!t)
+		return -4;
+
+	BasVarList **link = &f->list;
+	BasVarList *c;
+	switch(t->type)
+	{
+		case tokenString:
+			strncpy(f->prompt, t->content, 255);
+			f->prompt[255]='\0';
+		break;
+		case tokenVariable:
+			c = BasVarListAdd(link, t->content);
+			if (!c)
+				return -4;
+			link = &c->next;
+		break;
+		default:
+			return -4;
+	}
+	for(;;) {
+		t = bas_token_get(tokenizer);
+		if (!t)
+			break;
+
+		if (t->type == tokenLine)
+		       	break;
+	
+		if (t->type != tokenComma && t->type!= tokenSemicolon)
+			return -4;
+
+		t = bas_token_get(tokenizer);
+		if (!t)
+			return -4;
+		if (t->type!=tokenVariable)
+			return -4;
+
+		
+		c = BasVarListAdd(link, t->content);
+		if (!c)
+			return -4;
+		link = &c->next;
+	}
+	printf("Input Done!\n");
 	return 0;
 }
 
@@ -541,7 +597,13 @@ void dump_input(BasInputNode *x, int tab)
 {
 	int i;
 	for (i=0;i<tab;i++) putchar('\t');
-	printf("INPUT <TODO>\n");
+	printf("Input [%s] ", x->prompt);
+	BasVarList *v = x->list;
+	while(v) {
+		printf(", @[%s]", v->var);
+		v = v->next;
+	}
+	printf("\n");
 }
 
 void dump_assignment(BasAssignmentNode *x, int tab)
@@ -565,7 +627,6 @@ void dump(BasNode *root, int tab)
 	if (root!=NULL) {
 		BasNode *cur = root;
 		while(cur) {
-			//printf("Cur Type: %d\n", cur->type);
 			switch(cur->type)
 			{
 				case BAS_FOR:
@@ -609,12 +670,14 @@ int main(int argc, char **argv)
 	stream_reader_init(&reader, fp);
 	bas_token_init(&tokenizer, &reader);
 
-	BasBlock(&rootnode, &tokenizer, 0);
+	int r = BasBlock(&rootnode, &tokenizer, 0);
+	if (r)
+		goto fini;
 	
 	printf("\n===================================[BEGIN]==========================================\n");
 	dump(rootnode, 0);
 	printf("\n===================================[END]============================================\n");
-
+fini:
 	fclose(fp);
 }
 
