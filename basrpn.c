@@ -2,18 +2,25 @@
 
 #define MAXTOKENS 100
 
+size_t rpn_contents[MAXTOKENS];
+size_t wstk_contents[MAXTOKENS];
+size_t fstk_contents[MAXTOKENS];
+
 RpnToken tokenlist[MAXTOKENS];
-IndexQueue rpn,wstk,fstk;
+
+IndexQueue rpn ={rpn_contents,0,0},
+		   wstk={wstk_contents,0,0},
+		   fstk={fstk_contents,0,0};
 
 int BasRpnExpression(BasExpression *e)
 {
 	int r = BasToRpnToken(e->list, tokenlist, MAXTOKENS);
 	if (r<1)
 		return 0;
-	dump_rpn_tokens(tokenlist, r);
+	// dump_rpn_tokens(tokenlist, r);
    	int  c = reverse_polish_notation(tokenlist,r,&rpn,&wstk,&fstk);
-    	printf("IndexedLength: %d\n",c);
-    	dump_rpn(&rpn,tokenlist);
+    printf("IndexedLength: %d TokenLength\n",c);
+    //dump_rpn(&rpn,tokenlist);
 
 	return 0;
 }
@@ -176,7 +183,7 @@ int reverse_polish_notation(RpnToken *tokenlist, int tn, IndexQueue *rpn, IndexQ
         while( top >= 0 && tokenlist[top].type == tokenOperator ) {
           p2 = op_p( &tokenlist[top] );
           //char a2 = op_a( tokenlist[top] );
-          if( a1 == 'l' && p1 <= p2 || a1 == 'r' && p1 < p2 ) {
+          if( (a1 == 'l' && p1 <= p2) || (a1 == 'r' && p1 < p2) ) {
             iq_push(rpn, iq_pop(wstk) );
           }
           else {
@@ -211,6 +218,8 @@ int reverse_polish_notation(RpnToken *tokenlist, int tn, IndexQueue *rpn, IndexQ
           iq_push( rpn, iq_pop(wstk) );
         }
         break;
+	  default:
+		break;
     }
   }
   while ( (i = iq_pop(wstk)) >= 0 ) {

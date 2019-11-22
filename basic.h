@@ -162,7 +162,7 @@ typedef struct {
 #define QUEUEMAX 100
 
 typedef struct {
-  size_t contents[QUEUEMAX];
+  size_t *contents;
   size_t size;
   size_t max;
 } IndexQueue;
