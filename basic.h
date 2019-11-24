@@ -6,7 +6,35 @@
 #include <string.h>
 #include <stdlib.h>
 
+#define strcasecmp strcmpi
+#define isblank(c) ((c)==' ' || (c)=='\t')
+
 typedef int TNumber;
+
+#define QUEUEMAX 100
+#define MAXTOKENS 100
+
+typedef struct {
+  enum { evar, enumber, estring } type;
+  union {
+    TNumber number;
+    int varp;
+    char *vstring;
+  } t;
+} Entry;
+
+
+typedef struct {
+  char name[128];
+  TNumber value;
+} Variable;
+
+
+typedef struct {
+  size_t *contents;
+  size_t size;
+  size_t max;
+} IndexQueue;
 
 typedef enum {
 	tokenNone,
@@ -24,6 +52,13 @@ typedef enum {
 	tokenUnknown,
 	tokenError
 } TokenType;
+
+typedef struct {
+  TokenType type;
+  const char *content;
+  unsigned char extra;
+  size_t size;
+} RpnToken;
 
 
 #define MLEN 255
@@ -50,6 +85,7 @@ typedef enum {
 #define BAS_ELSE 5
 #define BAS_PRINT 6
 #define BAS_INPUT 7
+#define BAS_GOTO  8
 
 #define BAS_EXPR_ASSIGN    0
 #define BAS_EXPR_PRINT     1
@@ -94,6 +130,7 @@ BasToken *bas_token_expect_operator(BasTokenizer *bt, char *op);
 
 typedef struct BasNode {
 	int type;
+	int ln;
 	void *data;
 	struct BasNode *next;
 } BasNode;
@@ -105,6 +142,9 @@ typedef struct BasTokenItem {
 
 typedef struct {
 	BasTokenItem *list;
+	IndexQueue    istk;
+	int           size;
+	RpnToken     *tlist;
 } BasExpression;
 
 typedef struct BasExpressionList {
@@ -146,44 +186,17 @@ typedef struct {
 	BasExpression *expr;
 } BasAssignmentNode;
 
+typedef struct {
+	int goline;
+} BasGotoNode;
+
 int BasBuildExpression(BasExpression *e, BasTokenizer *tokenizer, int type);
 
 int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type);
 
-/* RPN Related */
-
-typedef struct {
-  TokenType type;
-  const char *content;
-  unsigned char extra;
-  size_t size;
-} RpnToken;
-
-#define QUEUEMAX 100
-
-typedef struct {
-  size_t *contents;
-  size_t size;
-  size_t max;
-} IndexQueue;
-
-typedef struct {
-  enum { evar, enumber } type;
-  union {
-    TNumber number;
-    int varp;
-  } t;
-} Entry;
-
-
-typedef struct {
-  char name[128];
-  TNumber value;
-} Variable;
-
 #define MAXVARS 100
 extern size_t nvariables;
-Variable variables[MAXVARS];
+extern Variable variables[MAXVARS];
 
 size_t define_var(const char *name, size_t n);
 TNumber set_var(size_t idx, TNumber value);
@@ -202,5 +215,8 @@ void dump_rpn_tokens(RpnToken *tokenlist, int count );
 void dump_rpn(IndexQueue *rpn, RpnToken *tokenlist);
 
 int BasRpnExpression(BasExpression *e);
+
+void basexec(BasNode *root, int tab);
+void basSetPutchar(int (*func)(int)); 
 
 #endif

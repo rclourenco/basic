@@ -14,13 +14,28 @@ IndexQueue rpn ={rpn_contents,0,0},
 
 int BasRpnExpression(BasExpression *e)
 {
+	int c;
 	int r = BasToRpnToken(e->list, tokenlist, MAXTOKENS);
 	if (r<1)
 		return 0;
-	// dump_rpn_tokens(tokenlist, r);
-   	int  c = reverse_polish_notation(tokenlist,r,&rpn,&wstk,&fstk);
-    printf("IndexedLength: %d TokenLength\n",c);
-    //dump_rpn(&rpn,tokenlist);
+	e->tlist = (RpnToken *)malloc(sizeof(RpnToken)*(r+2));
+	if (!e->tlist)
+		return -4;
+	e->size = r;
+	memcpy(e->tlist, tokenlist, sizeof(RpnToken)*r);
+
+	dump_rpn_tokens(e->tlist, e->size);
+
+	c = reverse_polish_notation(e->tlist,e->size,&rpn,&wstk,&fstk);
+	if (c < 1)
+		return 0;
+	e->istk.contents = (size_t *)malloc(sizeof(size_t)*(c+2));
+	if (!e->istk.contents)
+		return -4;
+	e->istk.size = c;
+	e->istk.max  = c;
+	memcpy(e->istk.contents, rpn.contents, sizeof(size_t)*c);
+	dump_rpn(&e->istk, e->tlist);
 
 	return 0;
 }
@@ -235,6 +250,8 @@ char op_p(RpnToken *token)
     return 0;
 
   switch( token->content[0] ) {
+    case '<':
+    case '>':
     case '=':
       p = 1;
     break;
@@ -263,8 +280,8 @@ char op_a(RpnToken *token)
     case '^':
       a = 'r';
     break;
-    case '=':
-      a = 'r';
+//    case '=':
+//      a = 'r';
   }
 
   return a;

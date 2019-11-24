@@ -3,11 +3,12 @@
 #include <string.h>
 #include <stdlib.h>
 #include "basic.h"
+#include "graphics.h"
 
 BasNode *rootnode=NULL;
 BasNode **current=&rootnode;
 
-BasNode *BasNodeCreate(BasNode **link, int type, void *data)
+BasNode *BasNodeCreate(BasNode **link, int type, void *data, int ln)
 {
 	BasNode *x=(BasNode *)malloc(sizeof(BasNode));
 	if(!x)
@@ -17,45 +18,55 @@ BasNode *BasNodeCreate(BasNode **link, int type, void *data)
 	x->data=data;
 	x->type=type;
 	x->next=NULL;
-
+	x->ln = ln;
 	return x;
 }
 
-BasNode *BasForNodeCreate(BasNode **link)
+BasNode *BasGotoNodeCreate(BasNode **link, int ln)
+{
+	BasGotoNode *n=(BasGotoNode *)malloc(sizeof(BasGotoNode));
+	if (!n)
+		return NULL;
+
+	return BasNodeCreate(link, BAS_GOTO, n, ln);
+}
+
+
+BasNode *BasForNodeCreate(BasNode **link, int ln)
 {
 	BasForNode *n=(BasForNode *)malloc(sizeof(BasForNode));
 	if(!n)
 		return NULL;
 
-	return BasNodeCreate(link, BAS_FOR, n);
+	return BasNodeCreate(link, BAS_FOR, n, ln);
 }
 
-BasNode *BasIfNodeCreate(BasNode **link)
+BasNode *BasIfNodeCreate(BasNode **link, int ln)
 {
 	BasIfNode *n=(BasIfNode *)malloc(sizeof(BasIfNode));
 	if(!n)
 		return NULL;
 
-	return BasNodeCreate(link, BAS_IF, n);
+	return BasNodeCreate(link, BAS_IF, n, ln);
 }
 
-BasNode *BasPrintNodeCreate(BasNode **link)
+BasNode *BasPrintNodeCreate(BasNode **link, int ln)
 {
 	BasPrintNode *n=(BasPrintNode *)malloc(sizeof(BasPrintNode));
 	if(!n)
 		return NULL;
 
-	return BasNodeCreate(link, BAS_PRINT, n);
+	return BasNodeCreate(link, BAS_PRINT, n, ln);
 }
 
-BasNode *BasInputNodeCreate(BasNode **link)
+BasNode *BasInputNodeCreate(BasNode **link, int ln)
 {
 	BasInputNode *n=(BasInputNode *)malloc(sizeof(BasInputNode));
 	if(!n)
 		return NULL;
 	n->prompt[0]='\0';
 	n->list=NULL;
-	return BasNodeCreate(link, BAS_INPUT, n);
+	return BasNodeCreate(link, BAS_INPUT, n, ln);
 }
 
 BasVarList *BasVarListAdd(BasVarList **link, char *var)
@@ -70,13 +81,13 @@ BasVarList *BasVarListAdd(BasVarList **link, char *var)
 	return n;
 }
 
-BasNode *BasAssignmentNodeCreate(BasNode **link)
+BasNode *BasAssignmentNodeCreate(BasNode **link, int ln)
 {
 	BasAssignmentNode *n=(BasAssignmentNode *)malloc(sizeof(BasAssignmentNode));
 	if (!n)
 		return NULL;
 
-	return BasNodeCreate(link, BAS_ASSIGNMENT, n);
+	return BasNodeCreate(link, BAS_ASSIGNMENT, n, ln);
 }
 
 BasExpression *BasExpressionCreate()
@@ -86,6 +97,11 @@ BasExpression *BasExpressionCreate()
 		return NULL;
 	
 	n->list = NULL;
+	n->istk.max  = 0;
+	n->istk.size = 0;
+	n->istk.contents = NULL;
+	n->tlist = NULL;
+	n->size = 0;
 	return n;
 }
 
@@ -221,21 +237,25 @@ int BuildPrintBlock(BasNode *n, BasTokenizer *tokenizer)
 {
 	BasPrintNode *pn = (BasPrintNode *)n->data;
 	BasToken *t;
+	BasExpressionList **link;
 
 	pn->list = NULL;
-	BasExpressionList **link = &pn->list;	
+	link = &pn->list;	
 	do {
-		BasExpression *e = BasExpressionCreate();
+		int r;
+		BasExpression *e;
+		BasExpressionList *l;
+	        e = BasExpressionCreate();
 		if (!e)
 			return -4;
-		BasExpressionList *l = BasExpressionListAdd(link, e);
+		l = BasExpressionListAdd(link, e);
 		if (!l) {
 			free(e);
 			return -4;
 		}
 		link = &l->next;
 
-		int r = BasBuildExpression(e, tokenizer, BAS_EXPR_PRINT);
+		r = BasBuildExpression(e, tokenizer, BAS_EXPR_PRINT);
 		if (r)
 			return r;
 		t=bas_token_get(tokenizer);
@@ -255,13 +275,15 @@ int BuildInputBlock(BasNode *n, BasTokenizer *tokenizer)
 {
 	BasInputNode *f = (BasInputNode *)n->data;
 	BasToken *t;
+	BasVarList **link;
+	BasVarList *c;
 
 	t=bas_token_get(tokenizer);
 	if (!t)
 		return -4;
 
-	BasVarList **link = &f->list;
-	BasVarList *c;
+	link = &f->list;
+
 	switch(t->type)
 	{
 		case tokenString:
@@ -307,8 +329,8 @@ int BuildInputBlock(BasNode *n, BasTokenizer *tokenizer)
 int BuildAssignmentBlock(BasNode *n, BasToken *current, BasTokenizer *tokenizer)
 {
 	BasAssignmentNode *f = (BasAssignmentNode *)n->data;
-
 	BasToken *t;
+	int r;
 
 	if (current != NULL && current->type==tokenVariable) {
 		strncpy(f->var, current->content, MLEN-1);
@@ -324,7 +346,7 @@ int BuildAssignmentBlock(BasNode *n, BasToken *current, BasTokenizer *tokenizer)
 	if (!f->expr)
 		return -4;
 
-	int r = BasBuildExpression(f->expr, tokenizer, BAS_EXPR_ASSIGN);
+	r = BasBuildExpression(f->expr, tokenizer, BAS_EXPR_ASSIGN);
 	if (r)
 		return r;
 
@@ -336,20 +358,40 @@ int BuildAssignmentBlock(BasNode *n, BasToken *current, BasTokenizer *tokenizer)
 	return 0;
 }
 
+int BuildGotoBlock(BasNode *n, BasTokenizer *tokenizer)
+{
+	BasGotoNode *f = (BasGotoNode *)n->data;
+
+	BasToken *t;
+
+
+	t=bas_token_expect(tokenizer, tokenNumber);
+	if (!t)
+		return -4;
+	f->goline = atoi(t->content);
+	return 0;
+}
+
 
 int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type)
 {
 	BasToken *token;
 
-	while( (token=bas_token_get(tokenizer)) ) {
-		if (type!=0)
-			printf(">>>> ");
-
-		printf("A %d -> %s\n", token->type, token->content);
+	int ln = -1;
+	int cn = -1;
+	while( (token=bas_token_get(tokenizer)) != NULL ) {
+		if (token->type == tokenNumber) {
+			printf("Number: %s\n", token->content);
+			if (type==0)
+				cn = atoi(token->content);
+			continue;
+		}
+		ln = cn;
+		cn = -1; 
 
 		if (token->type == TOKEN_NAME) {
 			if(!strcasecmp(token->content, "for")) {
-				BasNode *n = BasForNodeCreate(link);
+				BasNode *n = BasForNodeCreate(link, ln);
 				if(!n)
 					return -2;
 				link = &n->next;
@@ -359,10 +401,9 @@ int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type)
 						return r;
 					}
 				}
-				printf("For cycle: ");
 			}
 			else if(!strcasecmp(token->content, "if")) {
-				BasNode *n = BasIfNodeCreate(link);
+				BasNode *n = BasIfNodeCreate(link, ln);
 				if(!n)
 					return -2;
 				link = &n->next;
@@ -372,10 +413,9 @@ int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type)
 						return r;
 					}
 				}
-				printf("If block: ");
 			}
 			else if(!strcasecmp(token->content, "print")) {
-				BasNode *n = BasPrintNodeCreate(link);
+				BasNode *n = BasPrintNodeCreate(link, ln);
 				if(!n)
 					return -2;
 				link = &n->next;
@@ -385,10 +425,9 @@ int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type)
 						return r;
 					}
 				}	
-				printf("Print: ");
 			}
 			else if(!strcasecmp(token->content, "input")) {
-				BasNode *n = BasInputNodeCreate(link);
+				BasNode *n = BasInputNodeCreate(link, ln);
 				if(!n)
 					return -2;
 				link = &n->next;
@@ -398,33 +437,40 @@ int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type)
 						return r;
 					}
 				}
-				printf("Input: ");
+			}
+			else if(!strcasecmp(token->content, "goto")) {
+				BasNode *n = BasGotoNodeCreate(link, ln);
+				if(!n)
+					return -2;
+				link = &n->next;
+				{
+					int r=BuildGotoBlock(n, tokenizer);
+					if(r) {
+						return r;
+					}
+				}
 			}
 			else if(!strcasecmp(token->content, "end")) {
 				if (type==BAS_IF || type==BAS_ELSE) {
 					return 0;
 				}
-				printf("Unexpected end\n");
 				return -4;
 			}
 			else if(!strcasecmp(token->content, "else")) {
 				if (type==BAS_IF) {
 					return 1;
 				}
-				printf("Unexpected end\n");
 				return -4;
 			}
 			else if(!strcasecmp(token->content, "next")) {
 				if(type==BAS_FOR) {
-					printf("</FOR>\n");
-//					bas_token_unget(tokenizer);
 					return 0;
 				}
 				printf("Unexpected next\n");
 				return -4;
 			}
 			else {
-				BasNode *n = BasAssignmentNodeCreate(link);
+				BasNode *n = BasAssignmentNodeCreate(link, ln);
 				if(!n)
 					return -2;
 				link = &n->next;
@@ -434,37 +480,21 @@ int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type)
 						return r;
 					}
 				}	
-				printf("Assign: ");
 
-				/*
-				BasToken *nt=bas_token_get(tokenizer);
-				if(!nt) {
-					printf("Unexpected end... expecting ’=’\n");
-					return -4;
-				}
-
-				printf(">>>>>> %s\n", nt->content);
-
-				if(nt->type == TOKEN_OP && !strcasecmp(nt->content, "=")) {
-					printf("Assignment: %s <= ...\n", nt->content);
-				}
-				else {
-					printf("Unexpected token, expecting ’=’\n");
-				}
-				*/
 			}
 		}
 	}
-	printf("<BLOCK RETURN>\n");
 	return 0; /* success */
 }
 
 int BasBuildExpression(BasExpression *e, BasTokenizer *tokenizer, int type)
 {
 	BasToken *t;
-	e->list = NULL;
+	BasTokenItem **link;
+	BasTokenItem *i;
 
-	BasTokenItem **link = &e->list;
+	e->list = NULL;
+	link = &e->list;
 	do {
 		t=bas_token_get(tokenizer);
 		if (!t)
@@ -491,7 +521,7 @@ int BasBuildExpression(BasExpression *e, BasTokenizer *tokenizer, int type)
 			break;
 		}
 
-		BasTokenItem *i = BasTokenItemAdd(link, t);
+		i = BasTokenItemAdd(link, t);
 		if (!i)
 			return -4;
 		link = &i->next;
@@ -507,9 +537,11 @@ void dump_token(BasToken *t);
 
 void dump_expr(BasExpression *expr)
 {
+	BasTokenItem *ti;
 	if (!expr)
 		return;
-	BasTokenItem *ti = expr->list;
+
+	ti = expr->list;
 	while(ti) {
 		dump_token(&ti->token);
 		ti=ti->next;
@@ -517,6 +549,15 @@ void dump_expr(BasExpression *expr)
 			printf(" ");
 	}
 }
+
+void dump_goto(BasGotoNode *x, int tab)
+{
+	int i;
+	for (i=0;i<tab;i++) putchar('\t');
+	
+	printf("Goto: @%d\n", x->goline);
+}
+
 
 void dump_for(BasForNode *x, int tab)
 {
@@ -567,10 +608,13 @@ void dump_token(BasToken *t)
 void dump_print(BasPrintNode *x, int tab)
 {
 	int i;
-	for (i=0;i<tab;i++) putchar('\t');
-	BasExpressionList *l = x->list;
-	printf("@print");
 	int nl = 1;
+	BasExpressionList *l;
+
+	for (i=0;i<tab;i++) putchar('\t');
+	l = x->list;
+	printf("@print");
+
 	while(l) {
 		BasTokenItem *ti = l->expr->list;
 		if (!ti) break;
@@ -595,10 +639,11 @@ void dump_print(BasPrintNode *x, int tab)
 
 void dump_input(BasInputNode *x, int tab)
 {
+	BasVarList *v;
 	int i;
 	for (i=0;i<tab;i++) putchar('\t');
 	printf("Input [%s] ", x->prompt);
-	BasVarList *v = x->list;
+	v = x->list;
 	while(v) {
 		printf(", @[%s]", v->var);
 		v = v->next;
@@ -608,10 +653,11 @@ void dump_input(BasInputNode *x, int tab)
 
 void dump_assignment(BasAssignmentNode *x, int tab)
 {
+	BasTokenItem *ti;
 	int i;
 	for (i=0;i<tab;i++) putchar('\t');
 	printf("Let %s =", x->var);
-	BasTokenItem *ti = x->expr->list;
+	ti = x->expr->list;
 
 	while(ti) {
 		printf(" ");
@@ -627,6 +673,8 @@ void dump(BasNode *root, int tab)
 	if (root!=NULL) {
 		BasNode *cur = root;
 		while(cur) {
+			if (cur->ln != -1)
+				printf("@%d ", cur->ln);
 			switch(cur->type)
 			{
 				case BAS_FOR:
@@ -644,24 +692,56 @@ void dump(BasNode *root, int tab)
 				case BAS_ASSIGNMENT:
 					dump_assignment((BasAssignmentNode *)cur->data, tab);
 				break;
+				case BAS_GOTO:
+					dump_goto((BasGotoNode *)cur->data, tab);
+				break;
 			}
 			cur = cur->next;
 		}
 	}
 }
 
-int main(int argc, char **argv)
-{	
+void run()
+{
+	/*
+	int i;
+	for(i=0;i<256;i++)
+		syswritechar(i);
+	*/
+	syswritechar(10);
+	basexec(rootnode, 0);
+}
+
+
+void list(const char *filename) 
+{
+	FILE *fp;
+
+	fp = fopen(filename,"r");
+	if(!fp)
+	{
+		return;
+	}
+
+	while(!feof(fp)) {
+		int ch = fgetc(fp);
+		syswritechar(ch);
+	}
+
+	fclose(fp);
+
+}
+int parse(const char *filename)
+{
 	FILE *fp;
 	unsigned long counter;
 	char buffer[MLEN+1];
+	int r;
 	StreamReader reader;
 	BasTokenizer tokenizer;
 	BasToken *token;
 
-	if (argc<2)
-		return 0;
-	fp = fopen(argv[1],"r");
+	fp = fopen(filename,"r");
 	if(!fp)
 	{
 		return 1;
@@ -670,15 +750,124 @@ int main(int argc, char **argv)
 	stream_reader_init(&reader, fp);
 	bas_token_init(&tokenizer, &reader);
 
-	int r = BasBlock(&rootnode, &tokenizer, 0);
-	if (r)
-		goto fini;
-	
-	printf("\n===================================[BEGIN]==========================================\n");
-	dump(rootnode, 0);
-	printf("\n===================================[END]============================================\n");
-fini:
+	r = BasBlock(&rootnode, &tokenizer, 0);
+
 	fclose(fp);
+	return r;
+
+}
+
+/*
+ * Init Graphic system
+ * Move this to another place
+ *
+ *
+ */
+
+void sysgetxy(int *x, int *y)
+{
+	unsigned char col, row;
+	asm {
+		mov ah, 0x3;
+		mov bh, 0;
+		int 10h;
+		mov row, dh;
+		mov col, dl;
+	}
+	*x = col;
+	*y = row;
+}
+
+void syssetxy(int x, int y)
+{
+	asm {
+		mov ah, 0x2;
+		mov bh, 0;
+		mov dh, byte ptr y;
+		mov dl, byte ptr x;
+		int 10h;
+	}
+}
+
+#define USE_GRAPHICS
+
+int syswritechar(int c) 
+{
+#ifdef USE_GRAPHICS 
+	TextBackGround=1;
+	TextColor=9;
+
+	tt_putchar(c);
+	return 1;
+#else
+	if (c==10) {
+		int x, y;
+		sysgetxy(&x,&y);
+		x = 0;
+		syssetxy(x, y);
+	}
+
+	asm {
+		mov ah, 0xe;
+		mov al, byte ptr c;
+		mov bh, 0;
+		mov bl, 0x9;
+	       	int 0x10;	
+	}
+
+	return 1;
+#endif
+}
+
+void init_system()
+{
+	asm {
+		mov ax, 13h;
+		int 10h;
+
+		mov ah, 0xB;
+		mov bh, 0;
+		mov bl, 2;
+		int 10h;
+	}
+	basSetPutchar(syswritechar);
+	basSetGetchar(tt_getchar);
+	SetOverScan(9);
+	TextBackGround=1;
+	TextColor=9;
+	FillColor=1;
+	fillscreen(1);
+}
+
+void close_system() 
+{
+	asm {
+		mov ax, 3h;
+		int 10h;
+	}
+	basSetPutchar(putchar);
+	basSetGetchar(getchar);
+}
+/*
+ * 
+ */
+
+int main(int argc, char **argv)
+{	
+	int r;
+	if (argc<2)
+		return 0;
+
+	r = parse(argv[1]);
+	if (r)
+		return r;
+	init_system();
+	list(argv[1]);
+	run();
+	getchar();
+	close_system();
+
+	return 0;
 }
 
 int read_line(FILE *fp, char *buffer, size_t len)
@@ -816,8 +1005,9 @@ BasToken *bas_token_string(BasTokenizer *bt)
 
 BasToken *bas_token_name(BasTokenizer *bt, int c)
 {
-	bt->last.type = TOKEN_NAME;
 	int i = 0;
+
+	bt->last.type = TOKEN_NAME;
 	bt->last.content[i++]=c;
 	c = stream_reader_get(bt->reader);
 	while(isalnum(c) || c=='_') {
