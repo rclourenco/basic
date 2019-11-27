@@ -15,7 +15,7 @@ typedef int TNumber;
 #define MAXTOKENS 100
 
 typedef struct {
-  enum { evar, enumber, estring } type;
+  enum { enone, evar, enumber, estring } type;
   union {
     TNumber number;
     int varp;
@@ -86,6 +86,9 @@ typedef struct {
 #define BAS_PRINT 6
 #define BAS_INPUT 7
 #define BAS_GOTO  8
+#define BAS_DIRECT 100
+
+#define BAS_STORE  101
 
 #define BAS_EXPR_ASSIGN    0
 #define BAS_EXPR_PRINT     1
@@ -100,12 +103,13 @@ int read_line(FILE *fp, char *buffer, size_t len);
 #define MAXBACK 10
 
 typedef struct {
-	FILE *fp;
+	int (*read_func)(void *data);
+	void *reader_data;
 	char buffer[MAXBACK];
 	int pos;
 } StreamReader;
 
-void stream_reader_init(StreamReader *r, FILE *fp);
+void stream_reader_init(StreamReader *r, int (*read_func)(void *data), void *reader_data);
 int  stream_reader_get(StreamReader *r);
 void stream_reader_unget(StreamReader *r, char c);
 
@@ -218,5 +222,10 @@ int BasRpnExpression(BasExpression *e);
 
 void basexec(BasNode *root, int tab);
 void basSetPutchar(int (*func)(int)); 
+
+int basPrintf(const char *format, ...);
+extern int (*basGetchar)(void);
+
+void basedit_loop();
 
 #endif

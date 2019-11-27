@@ -24,7 +24,7 @@ int BasRpnExpression(BasExpression *e)
 	e->size = r;
 	memcpy(e->tlist, tokenlist, sizeof(RpnToken)*r);
 
-	dump_rpn_tokens(e->tlist, e->size);
+	// dump_rpn_tokens(e->tlist, e->size);
 
 	c = reverse_polish_notation(e->tlist,e->size,&rpn,&wstk,&fstk);
 	if (c < 1)
@@ -35,7 +35,8 @@ int BasRpnExpression(BasExpression *e)
 	e->istk.size = c;
 	e->istk.max  = c;
 	memcpy(e->istk.contents, rpn.contents, sizeof(size_t)*c);
-	dump_rpn(&e->istk, e->tlist);
+
+	// dump_rpn(&e->istk, e->tlist);
 
 	return 0;
 }

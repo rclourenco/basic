@@ -66,7 +66,7 @@ void exec_expression(BasExpression *expr)
 {
 	BasTokenItem *ti;
 	
-	result.type = enumber;
+	result.type = enone;
 	result.t.number = 0;
 
 	if (!expr)
@@ -80,9 +80,9 @@ void exec_expression(BasExpression *expr)
 	}
 
 	if (expr->istk.size && expr->istk.contents) {
+		result.type = enumber;
 		result.t.number = eval_rpn(expr->tlist, &expr->istk);
 	}
-
 }
 
 void exec_for(BasForNode *x, int tab)
@@ -305,7 +305,7 @@ TNumber antof(const char *src, size_t n)
 }
 
 
-size_t sp = 0; 
+int sp = 0; 
 Entry stack[MAXTOKENS];
 
 TNumber call_function(RpnToken *token, Entry *args, size_t f, size_t n)
@@ -394,6 +394,8 @@ TNumber eval_rpn(RpnToken *tokenlist, IndexQueue *rpn)
   int j;
   Entry v1,v2;
   TNumber r;
+  
+  sp=0;
   for(j = 0; j < rpn->size; j++ ) {
     int i = rpn->contents[j];
     switch( tokenlist[i].type ) {
@@ -426,6 +428,8 @@ TNumber eval_rpn(RpnToken *tokenlist, IndexQueue *rpn)
         //printf("Type: unknown ");
 	break; 
     }
+    if (sp<0)
+	    return 0;
   }
 
   if( sp > 0 ) {

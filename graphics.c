@@ -457,9 +457,7 @@ void SetOverScan(char c)
 	}
 }
 
-struct {
-	int x,y,c,r;
-} Cursor = {0, 0, 0, 0};
+TCursor Cursor = {0, 0};
 
 void show_cursor()
 {

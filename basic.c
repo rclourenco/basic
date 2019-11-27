@@ -6,7 +6,6 @@
 #include "graphics.h"
 
 BasNode *rootnode=NULL;
-BasNode **current=&rootnode;
 
 BasNode *BasNodeCreate(BasNode **link, int type, void *data, int ln)
 {
@@ -166,7 +165,7 @@ int BuildForBlock(BasNode *n, BasTokenizer *tokenizer)
 
 	t=bas_token_get(tokenizer);
 	if(!t) {
-		printf("Unexpected end...\n");
+	//	printf("Unexpected end...\n");
 		return -4;
 	}
 
@@ -174,7 +173,7 @@ int BuildForBlock(BasNode *n, BasTokenizer *tokenizer)
 		f->step=1.0;
 		goto for_block;
 	} else if(t->type!=TOKEN_NAME || strcmp(t->content,"step")) {
-		printf("Unexpected token, expecting: step\n");
+	//	printf("Unexpected token, expecting: step\n");
 		return -4;
 	}
 
@@ -322,7 +321,7 @@ int BuildInputBlock(BasNode *n, BasTokenizer *tokenizer)
 			return -4;
 		link = &c->next;
 	}
-	printf("Input Done!\n");
+	// printf("Input Done!\n");
 	return 0;
 }
 
@@ -381,7 +380,9 @@ int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type)
 	int cn = -1;
 	while( (token=bas_token_get(tokenizer)) != NULL ) {
 		if (token->type == tokenNumber) {
-			printf("Number: %s\n", token->content);
+			if (type==BAS_DIRECT)
+				return BAS_STORE;
+			//printf("Number: %s\n", token->content);
 			if (type==0)
 				cn = atoi(token->content);
 			continue;
@@ -390,8 +391,11 @@ int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type)
 		cn = -1; 
 
 		if (token->type == TOKEN_NAME) {
+			BasNode *n;
 			if(!strcasecmp(token->content, "for")) {
-				BasNode *n = BasForNodeCreate(link, ln);
+				if (type==BAS_DIRECT) return -BAS_DIRECT;
+
+				n = BasForNodeCreate(link, ln);
 				if(!n)
 					return -2;
 				link = &n->next;
@@ -403,7 +407,9 @@ int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type)
 				}
 			}
 			else if(!strcasecmp(token->content, "if")) {
-				BasNode *n = BasIfNodeCreate(link, ln);
+				if (type==BAS_DIRECT) return -BAS_DIRECT;
+
+				n = BasIfNodeCreate(link, ln);
 				if(!n)
 					return -2;
 				link = &n->next;
@@ -427,7 +433,7 @@ int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type)
 				}	
 			}
 			else if(!strcasecmp(token->content, "input")) {
-				BasNode *n = BasInputNodeCreate(link, ln);
+				n = BasInputNodeCreate(link, ln);
 				if(!n)
 					return -2;
 				link = &n->next;
@@ -439,7 +445,9 @@ int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type)
 				}
 			}
 			else if(!strcasecmp(token->content, "goto")) {
-				BasNode *n = BasGotoNodeCreate(link, ln);
+				if (type==BAS_DIRECT) return -BAS_DIRECT;
+
+				n = BasGotoNodeCreate(link, ln);
 				if(!n)
 					return -2;
 				link = &n->next;
@@ -451,26 +459,32 @@ int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type)
 				}
 			}
 			else if(!strcasecmp(token->content, "end")) {
+				if (type==BAS_DIRECT) return -BAS_DIRECT;
+
 				if (type==BAS_IF || type==BAS_ELSE) {
 					return 0;
 				}
 				return -4;
 			}
 			else if(!strcasecmp(token->content, "else")) {
+				if (type==BAS_DIRECT) return -BAS_DIRECT;
+
 				if (type==BAS_IF) {
 					return 1;
 				}
 				return -4;
 			}
 			else if(!strcasecmp(token->content, "next")) {
+				if (type==BAS_DIRECT) return -BAS_DIRECT;
+
 				if(type==BAS_FOR) {
 					return 0;
 				}
-				printf("Unexpected next\n");
+			//	printf("Unexpected next\n");
 				return -4;
 			}
 			else {
-				BasNode *n = BasAssignmentNodeCreate(link, ln);
+				n = BasAssignmentNodeCreate(link, ln);
 				if(!n)
 					return -2;
 				link = &n->next;
@@ -731,6 +745,14 @@ void list(const char *filename)
 	fclose(fp);
 
 }
+
+int file_reader(void *data) {
+	FILE *fp = (FILE *)data;
+	if (!fp)
+		return EOF;
+	return fgetc(fp);
+}
+
 int parse(const char *filename)
 {
 	FILE *fp;
@@ -747,7 +769,7 @@ int parse(const char *filename)
 		return 1;
 	}
 
-	stream_reader_init(&reader, fp);
+	stream_reader_init(&reader, file_reader, fp);
 	bas_token_init(&tokenizer, &reader);
 
 	r = BasBlock(&rootnode, &tokenizer, 0);
@@ -855,8 +877,12 @@ void close_system()
 int main(int argc, char **argv)
 {	
 	int r;
-	if (argc<2)
+	if (argc<2) {
+		init_system();
+		basedit_loop();
+		close_system();
 		return 0;
+	}
 
 	r = parse(argv[1]);
 	if (r)
@@ -886,9 +912,10 @@ int read_line(FILE *fp, char *buffer, size_t len)
 	return count;
 }
 
-void stream_reader_init(StreamReader *r, FILE *fp)
+void stream_reader_init(StreamReader *r, int (*read_func)(void *data), void  *reader_data)
 {
-	r->fp = fp;
+	r->read_func = read_func;
+	r->reader_data = reader_data;
 	r->pos = 0;
 }
 
@@ -897,7 +924,7 @@ int stream_reader_get(StreamReader *r)
 	if(r->pos) {
 		return r->buffer[--r->pos];
 	}
-	return fgetc(r->fp);
+	return r->read_func(r->reader_data);
 }
 
 void stream_reader_unget(StreamReader *r, char c)
@@ -911,13 +938,13 @@ BasToken *bas_token_expect(BasTokenizer *bt, int type)
 {
 	BasToken *t=bas_token_get(bt);
 	if(!t){
-		printf("Unexpected eof\n");
+	//	printf("Unexpected eof\n");
 		return NULL;
 	}
 
 	if(t->type!=type)
 	{
-		printf("Unexpected token type\n");
+	//	printf("Unexpected token type\n");
 		return NULL;
 	}
 	return t;
@@ -927,17 +954,17 @@ BasToken *bas_token_expect_name(BasTokenizer *bt, char *name)
 {
 	BasToken *t=bas_token_get(bt);
 	if(!t) {
-		printf("Unexpected eof\n");
+	//	printf("Unexpected eof\n");
 		return NULL;
 	}
 
 	if(t->type!=TOKEN_NAME) {
-		printf("Unexpected token type\n");
+	//	printf("Unexpected token type\n");
 		return NULL;
 	}
 
 	if(strcmp(t->content, name)) {
-		printf("Unexpected name: %s\n", t->content);
+	//	printf("Unexpected name: %s\n", t->content);
 		return NULL;
 	}
 
@@ -948,17 +975,17 @@ BasToken *bas_token_expect_operator(BasTokenizer *bt, char *op)
 {
 	BasToken *t=bas_token_get(bt);
 	if(!t) {
-		printf("Unexpected eof\n");
+	//	printf("Unexpected eof\n");
 		return NULL;
 	}
 
 	if(t->type!=TOKEN_OP) {
-		printf("Unexpected token type\n");
+	//	printf("Unexpected token type\n");
 		return NULL;
 	}
 
 	if(strcmp(t->content, op)) {
-		printf("Unexpected operator: %s\n", t->content);
+	//	printf("Unexpected operator: %s\n", t->content);
 		return NULL;
 	}
 
@@ -1045,7 +1072,7 @@ BasToken *bas_token_number(BasTokenizer *bt, int c)
 	if (c=='e' || c=='E') {
 		bt->last.content[i++]=c;
 		c = stream_reader_get(bt->reader);
-		printf("jump to expoent");
+	//	printf("jump to expoent");
 		goto expoent;
 	}
 

@@ -73,6 +73,14 @@ void UserScreen(unsigned char far *s);
 char ScrnCpyUD();
 char ScrnCpyDU();
 
+unsigned char xgetch();
+
+typedef struct {
+	int c, r;
+} TCursor;
+
+extern TCursor Cursor;
+
 void tt_putchar(int c);
 int tt_getchar();
 #endif
