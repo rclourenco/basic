@@ -10,7 +10,12 @@ Variable variables[MAXVARS];
 
 int branch = -1;
 
-TNumber eval_rpn(RpnToken *tokenlist, IndexQueue *rpn);
+int basexec_quit()
+{
+	return branch==-2;
+}
+
+Entry eval_rpn(RpnToken *tokenlist, IndexQueue *rpn);
 
 Entry result;
 
@@ -80,8 +85,7 @@ void exec_expression(BasExpression *expr)
 	}
 
 	if (expr->istk.size && expr->istk.contents) {
-		result.type = enumber;
-		result.t.number = eval_rpn(expr->tlist, &expr->istk);
+		result = eval_rpn(expr->tlist, &expr->istk);
 	}
 }
 
@@ -147,6 +151,9 @@ void exec_print(BasPrintNode *x, int tab)
 		else if(result.type == enumber) {
 			basPrintf("%d", result.t.number);
 		}
+		else if(result.type == echar) {
+			basPutchar(result.t.chr);
+		}
 	
 		switch(l->separator) {
 			case TOKEN_COMMA:     basPrintf("\t"); break;
@@ -157,6 +164,63 @@ void exec_print(BasPrintNode *x, int tab)
 	}
 	if (nl)
 		basPrintf("\n");
+}
+
+Entry cmdArgs[8];
+int cmdCount = 0;
+
+void command_args(BasCommandNode *x)
+{
+	BasExpressionList *l = x->list;
+	int i = 0;
+
+	while(l && i<8) {
+		exec_expression(l->expr);
+		cmdArgs[i] = result;
+
+		l=l->next;
+		i++;
+	}
+
+	cmdCount = i;
+}
+
+
+TNumber cmdNumber(int i)
+{
+	if (i<cmdCount) {
+		if(cmdArgs[i].type == enumber) {
+			return cmdArgs[i].t.number;
+		}
+	}
+	return 0;
+}
+
+char *cmdString(int i)
+{
+	if (i<cmdCount) {
+		if(cmdArgs[i].type == estring) {
+			return cmdArgs[i].t.vstring;
+		}
+	}
+
+	return NULL;
+}
+
+
+
+void exec_command(BasCommandNode *x)
+{
+	command_args(x);
+
+	switch (x->def->cmd)
+	{
+		case cmdFre:   basPrintf("%u Bytes\n", coreleft()); break;
+		case cmdCls:   tt_clear(); break;
+		case cmdColor: tt_color(cmdNumber(0)); if (cmdCount > 1) tt_bgcolor(cmdNumber(1)); break;
+		case cmdLocate: tt_locate(cmdNumber(0), cmdNumber(1)); break;
+		case cmdQuit:  branch=-2;  break;
+	}
 }
 
 char input_buffer[128];
@@ -216,22 +280,25 @@ void basexec(BasNode *root, int tab)
 			{
 				case BAS_FOR:
 					exec_for((BasForNode *)cur->data, tab);
-				break;
+					break;
 				case BAS_IF:
 					exec_if((BasIfNode *)cur->data, tab);
-				break;
+					break;
 				case BAS_INPUT:
 					exec_input((BasInputNode *)cur->data, tab);
-				break;
+					break;
 				case BAS_PRINT:
 					exec_print((BasPrintNode *)cur->data, tab);
-				break;
+					break;
 				case BAS_ASSIGNMENT:
 					exec_assignment((BasAssignmentNode *)cur->data, tab);
-				break;
+					break;
+				case BAS_COMMAND:
+					exec_command((BasCommandNode *)cur->data);
+					break;
 				case BAS_GOTO:
 					branch = ((BasGotoNode *)cur->data)->goline;
-				break;
+					break;
 			}
 
 			if (branch != -1) {
@@ -308,12 +375,15 @@ TNumber antof(const char *src, size_t n)
 int sp = 0; 
 Entry stack[MAXTOKENS];
 
-TNumber call_function(RpnToken *token, Entry *args, size_t f, size_t n)
+Entry call_function(RpnToken *token, Entry *args, size_t f, size_t n)
 {
   char buffer[20];
   TNumber v1 = 0;
   TNumber v2 = 0;
 
+  Entry re;
+  re.type = enumber;
+  re.t.number = 0;
   strncpy(buffer,token->content,token->size);
   buffer[token->size] = '\0';
 
@@ -336,18 +406,22 @@ TNumber call_function(RpnToken *token, Entry *args, size_t f, size_t n)
   }
 
   if(!strcmp(buffer,"sin") ) {
-    return 0; //sin(v1);
+     //sin(v1);
   }
   else if(!strcmp(buffer,"cos") ) {
-    return 0; //cos(v1);
+  
   }
   else if(!strcmp(buffer,"tan") ) {
-    return 0; //tan(v1);
+    
   }
   else if(!strcmp(buffer,"pi") ) {
-    return 3.14;
+    re.t.number = 3.14;
   }
-  return 0.0;
+  else if(!strcmp(buffer, "chr")) {
+	re.type = echar;
+	re.t.chr = v1;  
+  }
+  return re;
 }
 
 TNumber operation(RpnToken *token, Entry *e1, Entry *e2)
@@ -389,11 +463,12 @@ TNumber operation(RpnToken *token, Entry *e1, Entry *e2)
 }
 
 
-TNumber eval_rpn(RpnToken *tokenlist, IndexQueue *rpn)
+Entry eval_rpn(RpnToken *tokenlist, IndexQueue *rpn)
 {
   int j;
   Entry v1,v2;
   TNumber r;
+  Entry re;
   
   sp=0;
   for(j = 0; j < rpn->size; j++ ) {
@@ -417,10 +492,11 @@ TNumber eval_rpn(RpnToken *tokenlist, IndexQueue *rpn)
         sp++;
         break;
       case tokenFunction:
-        r = call_function(&tokenlist[i],stack,sp-tokenlist[i].extra,tokenlist[i].extra);
+        re = call_function(&tokenlist[i],stack,sp-tokenlist[i].extra,tokenlist[i].extra);
         sp = sp-tokenlist[i].extra;
-        stack[sp].type = enumber;
-        stack[sp].t.number = r;
+		stack[sp] = re;
+//        stack[sp].type = enumber;
+//        stack[sp].t.number = r;
         sp++;
         //printf("Type: Function (nargs: %u) ", tokenlist[i].extra );
         break;
@@ -428,20 +504,27 @@ TNumber eval_rpn(RpnToken *tokenlist, IndexQueue *rpn)
         //printf("Type: unknown ");
 	break; 
     }
-    if (sp<0)
-	    return 0;
+    if (sp<0) {
+		re.type = enumber;
+		re.t.number = 0;
+	    return re;
+	}
   }
+
+  re.type = enumber;
+  re.t.number = 0;
 
   if( sp > 0 ) {
     sp--;
     if( stack[sp].type == enumber )
-      return stack[sp].t.number;
+      re.t.number = stack[sp].t.number;
     if( stack[sp].type == evar )
-      return get_var(stack[sp].t.varp);
-    else
-      return 0;
+      re.t.number = get_var(stack[sp].t.varp);
+	else
+	  return stack[sp];
   }
-  return 0;
+ 
+  return re;
 }
 
 

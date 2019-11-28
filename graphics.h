@@ -81,6 +81,12 @@ typedef struct {
 
 extern TCursor Cursor;
 
+void tt_locate(int c, int r);
+void tt_color(int c);
+void tt_bgcolor(int c);
+void tt_clear();
+int tt_getline(char *buffer, int max);
+void tt_init();
 void tt_putchar(int c);
 int tt_getchar();
 #endif

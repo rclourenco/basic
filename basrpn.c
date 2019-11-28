@@ -24,7 +24,7 @@ int BasRpnExpression(BasExpression *e)
 	e->size = r;
 	memcpy(e->tlist, tokenlist, sizeof(RpnToken)*r);
 
-	// dump_rpn_tokens(e->tlist, e->size);
+//    dump_rpn_tokens(e->tlist, e->size);
 
 	c = reverse_polish_notation(e->tlist,e->size,&rpn,&wstk,&fstk);
 	if (c < 1)
@@ -36,7 +36,7 @@ int BasRpnExpression(BasExpression *e)
 	e->istk.max  = c;
 	memcpy(e->istk.contents, rpn.contents, sizeof(size_t)*c);
 
-	// dump_rpn(&e->istk, e->tlist);
+//    dump_rpn(&e->istk, e->tlist);
 
 	return 0;
 }
@@ -126,7 +126,7 @@ void dump_rpn(IndexQueue *rpn, RpnToken *tokenlist)
         printf("Type: Operator ");
         break;
       case tokenFunction:
-        printf("Type: Function ");
+        printf("Type: Function %u", tokenlist[i].type);
         break;
       case tokenComma:
         printf("Type: Comma ");
@@ -169,19 +169,24 @@ int reverse_polish_notation(RpnToken *tokenlist, int tn, IndexQueue *rpn, IndexQ
         iq_push(rpn,i);
         cf = iq_top( fstk );
         if( cf>=0 && tokenlist[cf].type == tokenFunction ) {
-          tokenlist[cf].extra++;
+        	if (tokenlist[cf].extra==0) tokenlist[cf].extra=1;
         }
         break;
       case tokenFunction:
         cf = iq_top( fstk );
         if( cf>=0 && tokenlist[cf].type == tokenFunction ) {
-          tokenlist[cf].extra++;
+          if (tokenlist[cf].extra==0) tokenlist[cf].extra=1;
         }
         tokenlist[i].extra = 0;
         iq_push(fstk,i);
         iq_push(wstk,i);
       break;
       case tokenComma:
+        cf = iq_top( fstk );
+        if( cf>=0 && tokenlist[cf].type == tokenFunction ) {
+          tokenlist[cf].extra++;
+        }
+
         top = iq_top(wstk);
         while( top >= 0 && tokenlist[top].type != tokenLeft ) {
           if( tokenlist[top].type == tokenFunction ) {
@@ -260,6 +265,7 @@ char op_p(RpnToken *token)
     case '+':
       p = 2;
     break;
+	case '%':
     case '*':
     case '/':
       p = 3;

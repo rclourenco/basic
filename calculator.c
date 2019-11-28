@@ -305,19 +305,26 @@ int reverse_polish_notation(Token *tokenlist, int tn, IndexQueue *rpn, IndexQueu
         iq_push(rpn,i);
         cf = iq_top( fstk );
         if( cf>=0 && tokenlist[cf].type == tokenFunction ) {
-          tokenlist[cf].extra++;
+		  if (tokenlist[cf].extra==0)
+          		tokenlist[cf].extra=1;
         }
         break;
       case tokenFunction:
         cf = iq_top( fstk );
         if( cf>=0 && tokenlist[cf].type == tokenFunction ) {
-          tokenlist[cf].extra++;
+		  if (tokenlist[cf].extra==0)
+          		tokenlist[cf].extra=1;
         }
         tokenlist[i].extra = 0;
         iq_push(fstk,i);
         iq_push(wstk,i);
       break;
       case tokenComma:
+        cf = iq_top( fstk );
+        if( cf>=0 && tokenlist[cf].type == tokenFunction ) {
+          	tokenlist[cf].extra++;
+        }
+
         top = iq_top(wstk);
         while( top >= 0 && tokenlist[top].type != tokenLeft ) {
           if( tokenlist[top].type == tokenFunction ) {
@@ -549,6 +556,7 @@ double eval_rpn(Token *tokenlist, IndexQueue *rpn)
       default:
         printf("Type: unknown "); 
     }
+	printf("SP %u\n", sp);
   }
 
   if( sp > 0 ) {

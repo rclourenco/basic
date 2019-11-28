@@ -7,6 +7,29 @@
 
 BasNode *rootnode=NULL;
 
+void BasGotoNodeFree(BasGotoNode *);
+void BasForNodeFree(BasForNode *);
+void BasIfNodeFree(BasIfNode *);
+void BasInputNodeFree(BasInputNode *);
+void BasPrintNodeFree(BasPrintNode *);
+void BasAssignmentNodeFree(BasAssignmentNode *);
+void BasCommandNodeFree(BasCommandNode *);
+
+void BasExpressionFree(BasExpression *e);
+void BasExpressionListFree(BasExpressionList *el);
+void BasVarListFree(BasVarList *vl);
+
+BasCommandDef basCommands[] = {
+	"run",  cmdRun,
+	"list", cmdList,
+	"quit", cmdQuit,
+	"fre",  cmdFre,
+	"cls",  cmdCls,
+	"color", cmdColor,
+	"locate", cmdLocate,
+	NULL, cmdNone
+};
+
 BasNode *BasNodeCreate(BasNode **link, int type, void *data, int ln)
 {
 	BasNode *x=(BasNode *)malloc(sizeof(BasNode));
@@ -19,6 +42,26 @@ BasNode *BasNodeCreate(BasNode **link, int type, void *data, int ln)
 	x->next=NULL;
 	x->ln = ln;
 	return x;
+}
+
+void BasNodeFree(BasNode **link) {
+	if (*link==NULL)
+		return;
+
+	BasNodeFree(&((*link)->next));
+	switch((*link)->type)
+	{
+		case BAS_GOTO: BasGotoNodeFree((BasGotoNode *)(*link)->data); break;
+		case BAS_FOR:  BasForNodeFree((BasForNode *)(*link)->data); break;
+		case BAS_IF:   BasIfNodeFree((BasIfNode *)(*link)->data); break;
+		case BAS_PRINT:      BasPrintNodeFree((BasPrintNode *)(*link)->data); break;
+		case BAS_COMMAND:    BasCommandNodeFree((BasCommandNode *)(*link)->data); break;
+		case BAS_INPUT:      BasInputNodeFree((BasInputNode *)(*link)->data); break;
+		case BAS_ASSIGNMENT: BasAssignmentNodeFree((BasAssignmentNode *)(*link)->data); break;
+
+	}
+	free(*link);
+	*link = NULL;
 }
 
 BasNode *BasGotoNodeCreate(BasNode **link, int ln)
@@ -57,6 +100,16 @@ BasNode *BasPrintNodeCreate(BasNode **link, int ln)
 
 	return BasNodeCreate(link, BAS_PRINT, n, ln);
 }
+
+BasNode *BasCommandNodeCreate(BasNode **link, int ln)
+{
+	BasCommandNode *n=(BasCommandNode *)malloc(sizeof(BasCommandNode));
+	if(!n)
+		return NULL;
+
+	return BasNodeCreate(link, BAS_COMMAND, n, ln);
+}
+
 
 BasNode *BasInputNodeCreate(BasNode **link, int ln)
 {
@@ -193,6 +246,12 @@ for_block:
 
 }
 
+void BasForNodeFree(BasForNode *f)
+{
+	BasNodeFree(&f->block);
+	free(f);
+}
+
 int BuildIfBlock(BasNode *n, BasTokenizer *tokenizer)
 {
 	int r;
@@ -231,6 +290,58 @@ if_block:
 
 }
 
+void BasIfNodeFree(BasIfNode *f) {
+	BasNodeFree(&f->then_block);
+	BasNodeFree(&f->else_block);
+
+	BasExpressionFree(f->expr);
+	free(f);
+}
+
+int BuildCommandBlock(BasNode *n, BasTokenizer *tokenizer, BasCommandDef *def)
+{
+	BasCommandNode *pn = (BasCommandNode *)n->data;
+	BasToken *t;
+	BasExpressionList **link;
+
+	pn->def = def;
+	pn->list = NULL;
+	link = &pn->list;	
+	do {
+		int r;
+		BasExpression *e;
+		BasExpressionList *l;
+	        e = BasExpressionCreate();
+		if (!e)
+			return -4;
+		l = BasExpressionListAdd(link, e);
+		if (!l) {
+			free(e);
+			return -4;
+		}
+		link = &l->next;
+
+		r = BasBuildExpression(e, tokenizer, BAS_EXPR_PRINT);
+		if (r)
+			return r;
+		t=bas_token_get(tokenizer);
+		if (!t)
+			break;
+		switch (t->type) {
+			case TOKEN_COMMA:     l->separator = TOKEN_COMMA;     break;
+			case TOKEN_SEMICOLON: l->separator = TOKEN_SEMICOLON; break;
+			case TOKEN_LINE:      l->separator = TOKEN_LINE;      break;
+			default: return -4;
+		}
+	} while (t && t->type != TOKEN_LINE);
+	return 0;
+}
+
+void BasCommandNodeFree(BasCommandNode *f)
+{
+	BasExpressionListFree(f->list);
+	free(f);
+}
 
 int BuildPrintBlock(BasNode *n, BasTokenizer *tokenizer)
 {
@@ -268,6 +379,12 @@ int BuildPrintBlock(BasNode *n, BasTokenizer *tokenizer)
 		}
 	} while (t && t->type != TOKEN_LINE);
 	return 0;
+}
+
+void BasPrintNodeFree(BasPrintNode *f)
+{
+	BasExpressionListFree(f->list);
+	free(f);
 }
 
 int BuildInputBlock(BasNode *n, BasTokenizer *tokenizer)
@@ -325,6 +442,12 @@ int BuildInputBlock(BasNode *n, BasTokenizer *tokenizer)
 	return 0;
 }
 
+void BasInputNodeFree(BasInputNode *f)
+{
+	BasVarListFree(f->list);
+	free(f);
+}
+
 int BuildAssignmentBlock(BasNode *n, BasToken *current, BasTokenizer *tokenizer)
 {
 	BasAssignmentNode *f = (BasAssignmentNode *)n->data;
@@ -357,6 +480,12 @@ int BuildAssignmentBlock(BasNode *n, BasToken *current, BasTokenizer *tokenizer)
 	return 0;
 }
 
+void BasAssignmentNodeFree(BasAssignmentNode *f)
+{
+	BasExpressionFree(f->expr);
+	free(f);
+}
+
 int BuildGotoBlock(BasNode *n, BasTokenizer *tokenizer)
 {
 	BasGotoNode *f = (BasGotoNode *)n->data;
@@ -371,6 +500,10 @@ int BuildGotoBlock(BasNode *n, BasTokenizer *tokenizer)
 	return 0;
 }
 
+void BasGotoNodeFree(BasGotoNode *f) 
+{
+	free(f);
+}
 
 int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type)
 {
@@ -484,6 +617,32 @@ int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type)
 				return -4;
 			}
 			else {
+				int i=0;
+				BasCommandDef *cmd = NULL;
+				while(basCommands[i].name) {
+					if (!strcasecmp(token->content, basCommands[i].name)) {
+						cmd = &basCommands[i];
+						break;
+					}
+
+					i++;
+				}
+
+				if (cmd) {
+					n = BasCommandNodeCreate(link, ln);
+					if(!n)
+						return -2;
+					link = &n->next;
+					{
+						int r=BuildCommandBlock(n, tokenizer, cmd);
+						if(r) {
+							return r;
+						}
+					}	
+
+					continue;
+				}
+
 				n = BasAssignmentNodeCreate(link, ln);
 				if(!n)
 					return -2;
@@ -543,6 +702,52 @@ int BasBuildExpression(BasExpression *e, BasTokenizer *tokenizer, int type)
 next:
 	BasRpnExpression(e);
 	return 0;
+}
+
+void BasExpressionFree(BasExpression *e)
+{
+	BasTokenItem *i,*t;
+
+	if (!e)
+		return;
+	i=e->list;
+	while (i) 
+	{
+		t=i->next;
+		free(i);
+		i = t;
+	}
+
+	if (e->tlist)
+		free(e->tlist);
+	if (e->istk.contents) {
+		free(e->istk.contents);
+	}
+
+	free(e);
+}
+
+void BasExpressionListFree(BasExpressionList *el)
+{
+	BasExpressionList *t;
+
+	while (el) {
+		t=el->next;
+		BasExpressionFree(el->expr);
+		free(el);
+		el = t;
+	}
+}
+
+void BasVarListFree(BasVarList *vl)
+{
+	BasVarList *t;
+
+	while (vl) {
+		t=vl->next;
+		free(vl);
+		vl = t;
+	}
 }
 
 void dump(BasNode *, int);
@@ -816,8 +1021,8 @@ void syssetxy(int x, int y)
 int syswritechar(int c) 
 {
 #ifdef USE_GRAPHICS 
-	TextBackGround=1;
-	TextColor=9;
+//	TextBackGround=1;
+//	TextColor=9;
 
 	tt_putchar(c);
 	return 1;
@@ -859,6 +1064,7 @@ void init_system()
 	TextColor=9;
 	FillColor=1;
 	fillscreen(1);
+	tt_init();
 }
 
 void close_system() 
@@ -1157,9 +1363,7 @@ BasToken *bas_token_get(BasTokenizer *bt)
 		case '[':
 		case ']':
 		case '{':
-		case '}':	
-		case '(':
-		case ')':
+		case '}':
 		case '/':
 		case '\\':
 		case '*':
@@ -1169,7 +1373,18 @@ BasToken *bas_token_get(BasTokenizer *bt)
 		case '=':
 		case '<':
 		case '>':
+		case '%':
 			bt->last.type = TOKEN_OP;
+			bt->last.content[0]=c;
+			bt->last.content[1]='\0';
+			return &bt->last;
+		case '(':
+			bt->last.type = tokenLeft;
+			bt->last.content[0]=c;
+			bt->last.content[1]='\0';
+			return &bt->last;
+		case ')':
+			bt->last.type = tokenRight;
 			bt->last.content[0]=c;
 			bt->last.content[1]='\0';
 			return &bt->last;

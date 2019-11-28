@@ -481,9 +481,66 @@ void hide_cursor()
 	FillColor = bfillcolor;
 }
 
+void tt_locate(int c, int r)
+{
+	if (c<0)  c=0;
+	if (c>39) c=39; 
+
+	if (r<0)  r=0;
+	if (r>24) r=24;
+	Cursor.c = c;
+	Cursor.r = r;
+}
+
+unsigned char screentext[1024];
+
+int tt_getline(char *buffer, int max)
+{
+	int i=0;
+	char *start = screentext+Cursor.r*40;
+
+	if (max>80)
+		max = 80;
+	if (Cursor.r==24 && max>40)
+		max = 40;
+
+	for( i=0; i<max; i++) {
+		if (start[i]==10)
+			break;
+		buffer[i]=start[i];
+	}
+	buffer[i]=0;
+	return i;
+}
+
+void tt_init()
+{
+	_fxmemset(screentext, ' ', 40*25);
+}
+
+void tt_clear()
+{
+	_fxmemset(screentext, ' ', 40*25);
+	fillscreen(FillColor);
+	Cursor.c = 0;
+	Cursor.r = 0;
+}
+
+void tt_color(int c)
+{
+	TextColor = c;
+	Color = c;
+}
+
+void tt_bgcolor(int c)
+{
+	TextBackGround = c;
+	FillColor = c;
+}
+
 void tt_putchar(int c) 
 {
-	hide_cursor();
+	//hide_cursor();
 	switch(c) {
 	case 10:
 		Cursor.c = 0;
@@ -499,9 +556,11 @@ void tt_putchar(int c)
 				Cursor.c=0;
 			}
 		}
+		screentext[Cursor.r*40+Cursor.c] = ' ';
 		pchar(Cursor.c*8, Cursor.r*8, ' ');
 	break;
 	default:
+		screentext[Cursor.r*40+Cursor.c] = c;
 		pchar(Cursor.c*8, Cursor.r*8, c);
 		Cursor.c++;
 		if (Cursor.c>39) {
@@ -514,8 +573,11 @@ void tt_putchar(int c)
 		Cursor.r = 24;	
 		_fxmemcpy(screen, screen+320*8, 192*320);
 		_fxmemset(&screen[192*320], TextBackGround, 8*320);
+
+		_fxmemcpy(screentext, screentext+40, 40*24);
+		_fxmemset(screentext+24*40, ' ', 40);
 	}
-	show_cursor();
+	//show_cursor();
 }
 
 
@@ -530,6 +592,10 @@ unsigned char xgetch()
 	int s=0;
 	for(;;) {
 		int i;
+
+		if (kbhit())
+			break;
+
 		hide_cursor();
 		s = !s;
 		for(i=0; i<20; i++) {
@@ -537,8 +603,6 @@ unsigned char xgetch()
 			if (kbhit())
 				break;
 		}
-		if (kbhit())
-			break;
 
 	}
 	if (s)

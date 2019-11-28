@@ -15,9 +15,10 @@ typedef int TNumber;
 #define MAXTOKENS 100
 
 typedef struct {
-  enum { enone, evar, enumber, estring } type;
+  enum { enone, evar, enumber, estring, echar } type;
   union {
     TNumber number;
+	int chr;
     int varp;
     char *vstring;
   } t;
@@ -86,6 +87,7 @@ typedef struct {
 #define BAS_PRINT 6
 #define BAS_INPUT 7
 #define BAS_GOTO  8
+#define BAS_COMMAND 9
 #define BAS_DIRECT 100
 
 #define BAS_STORE  101
@@ -194,9 +196,21 @@ typedef struct {
 	int goline;
 } BasGotoNode;
 
+typedef struct {
+	char *name;
+	enum { cmdNone, cmdFre, cmdCls, cmdList, cmdRun, cmdQuit, cmdColor, cmdLocate } cmd;
+} BasCommandDef;
+
+typedef struct {
+	BasCommandDef *def;
+	BasExpressionList *list;
+} BasCommandNode;
+
 int BasBuildExpression(BasExpression *e, BasTokenizer *tokenizer, int type);
 
 int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type);
+
+void BasNodeFree(BasNode **link);
 
 #define MAXVARS 100
 extern size_t nvariables;
@@ -221,6 +235,8 @@ void dump_rpn(IndexQueue *rpn, RpnToken *tokenlist);
 int BasRpnExpression(BasExpression *e);
 
 void basexec(BasNode *root, int tab);
+int basexec_quit();
+
 void basSetPutchar(int (*func)(int)); 
 
 int basPrintf(const char *format, ...);

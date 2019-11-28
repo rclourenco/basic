@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <alloc.h>
 #include "basic.h"
 #include "graphics.h"
 
@@ -40,21 +41,6 @@ int basedit_load(char *filename)
 
 int basedit_char(unsigned char ch)
 {
-	int offset;
-	if (ch==8) {
-		offset = Cursor.c-1;
-		if (offset<0)
-			return;
-		offset += Cursor.r*40;
-		if (offset>=0 && offset<1000)
-			basedit_text[offset] = ' ';
-
-	} else {
-		offset = Cursor.r*40+Cursor.c;
-
-		if (offset>=0 && offset<1000)
-			basedit_text[offset] = ch;
-	}
 	tt_putchar(ch);
 	
 	return 0;
@@ -71,10 +57,16 @@ TDirectData direct_data;
 int direct_data_reader(void *data)
 {
 	TDirectData *d = (TDirectData *)data;
-	if (d->pos<40) {
-		return d->buffer[d->pos++];
-	}
-	return EOF;
+	int a;
+	
+	if (d->pos>=40)
+		return EOF;
+
+	a = d->buffer[d->pos];
+	if (!a)
+		return EOF;
+	d->pos++;
+	return a;
 }
 
 void basedit_line()
@@ -83,31 +75,32 @@ void basedit_line()
 	BasTokenizer tokenizer;
 	BasNode *rootdirect = NULL;
 
-	int i=0;
-	int line = Cursor.r;
-	
-	for (i=0; i<40; i++) {
-		direct_data.buffer[i]=basedit_text[line*40+i];
-	}
+	int i;
+	i = tt_getline(direct_data.buffer, 40);
+	direct_data.buffer[i] = 0;
+
 	direct_data.pos=0;
 	stream_reader_init(&reader, direct_data_reader, &direct_data);
 	bas_token_init(&tokenizer, &reader);
 	i = BasBlock(&rootdirect, &tokenizer, BAS_DIRECT);
 	if (i==BAS_STORE) {
+		// BasNodeFree(&rootdirect);
 		return;
 	}
 
-	if (i==0) {
+	if (i==0 && rootdirect) {
 		tt_putchar(10);
 		basexec(rootdirect, 0);
 		if (Cursor.c!=0)
 			tt_putchar(10);
 		basPrintf("Ready.");
+		BasNodeFree(&rootdirect);
 		return;
 	}
 
-	basPrintf("\nInvalid Token: %s\nReady.", tokenizer.last.content);
+	BasNodeFree(&rootdirect);
 
+	basPrintf("\nInvalid Token: %s\nReady.", tokenizer.last.content);
 }
 
 void basedit_loop()
@@ -119,8 +112,8 @@ void basedit_loop()
 	basPrintf("Ready.\n");
 
 	while ( (key=xgetch())!=27 ) {
-		switch(key)
-	       	{
+		
+		switch(key) {
 			case 0:  
 				switch(xgetch())
 				{
@@ -134,5 +127,8 @@ void basedit_loop()
 			default:
 				 basedit_char(key);
 		}
+
+		if (basexec_quit())
+			break;
 	}
 }
