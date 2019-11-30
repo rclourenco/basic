@@ -59,7 +59,7 @@ int direct_data_reader(void *data)
 	TDirectData *d = (TDirectData *)data;
 	int a;
 	
-	if (d->pos>=40)
+	if (d->pos>=80)
 		return EOF;
 
 	a = d->buffer[d->pos];
@@ -76,7 +76,7 @@ void basedit_line()
 	BasNode *rootdirect = NULL;
 
 	int i;
-	i = tt_getline(direct_data.buffer, 40);
+	i = tt_getline(direct_data.buffer, 80);
 	direct_data.buffer[i] = 0;
 
 	direct_data.pos=0;

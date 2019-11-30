@@ -144,7 +144,12 @@ void exec_print(BasPrintNode *x, int tab)
 
 	while(l) {
 		nl = 0;
+		if (l->next == NULL && (!l->expr || l->expr->size == 0))
+		       break;
+
 		exec_expression(l->expr);
+
+	
 		if (result.type == estring) {
 			basPrintf("%s", result.t.vstring);
 		}
@@ -387,7 +392,7 @@ Entry call_function(RpnToken *token, Entry *args, size_t f, size_t n)
   strncpy(buffer,token->content,token->size);
   buffer[token->size] = '\0';
 
-  if(n>0) {
+  if (n>0) {
     if( args[f].type == enumber ) {
       v1 = args[f].t.number;
     }
@@ -420,6 +425,10 @@ Entry call_function(RpnToken *token, Entry *args, size_t f, size_t n)
   else if(!strcmp(buffer, "chr")) {
 	re.type = echar;
 	re.t.chr = v1;  
+  }
+  else if(!strcmp(buffer, "rnd")) {
+	re.type = enumber;
+	re.t.number = v1 != 0 ? rand()%v1 : rand();  
   }
   return re;
 }
