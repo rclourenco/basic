@@ -162,7 +162,7 @@ void exec_print(BasPrintNode *x, int tab)
 	
 		switch(l->separator) {
 			case TOKEN_COMMA:     basPrintf("\t"); break;
-			case TOKEN_SEMICOLON: basPrintf(" "); break;
+			case TOKEN_SEMICOLON: break;
 			default: nl = 1;
 		}
 		l=l->next;

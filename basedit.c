@@ -173,14 +173,19 @@ int basedit_load(char *filename)
 	if (editlines==NULL)
 		return 0;
 
-    fp = fopen(filename, "rt");
+	fp = fopen(filename, "rt");
 	if (!fp) {
+		basPrintf("Cannot open \"%s\"", filename);
 		return 0;
 	}
 
-	while(read_line(fp, read_buffer, 80)) {
+	while (!feof(fp)) {
 		int ln=0;
+		if(!read_line(fp, read_buffer, 80))
+			continue;
+
 		sscanf(read_buffer, "%d", &ln);
+		//basPrint("%u");
 		basedit_store(ln, read_buffer);
 	}
 
