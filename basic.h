@@ -198,7 +198,7 @@ typedef struct {
 
 typedef struct {
 	char *name;
-	enum { cmdNone, cmdFre, cmdCls, cmdList, cmdRun, cmdQuit, cmdColor, cmdLocate } cmd;
+	enum { cmdNone, cmdFre, cmdCls, cmdList, cmdRun, cmdQuit, cmdColor, cmdLocate, cmdLoad, cmdSave } cmd;
 } BasCommandDef;
 
 typedef struct {
@@ -243,5 +243,7 @@ int basPrintf(const char *format, ...);
 extern int (*basGetchar)(void);
 
 void basedit_loop();
+void basedit_list(int start, int end);
+int basedit_run(int start);
 
 #endif

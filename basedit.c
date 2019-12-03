@@ -6,7 +6,12 @@
 
 #define MLINES 1024
 
-char **editlines = NULL;
+typedef struct {
+	int index;
+	char line[81];
+} BasTextLine;
+
+BasTextLine **editlines = NULL;
 size_t editlen=0;
 
 unsigned char basedit_text[1024];
@@ -17,24 +22,168 @@ void basedit_init()
 	for (i=0;i<1024;i++) {
 		basedit_text[i]=' ';
 	}
-	editlines = (char **)malloc(sizeof(char *)*MLINES);
+	editlines = (BasTextLine **)malloc(sizeof(BasTextLine *)*MLINES);
 }
 
+int basedit_store(int p,  char *line)
+{
+	int i=0;
+
+	BasTextLine *new;
+
+	if (p<0)
+		return -1;
+
+	for (i=0;i<editlen;i++) {
+		if (editlines[i]->index == p) {
+			memcpy(editlines[i]->line, line, 81);
+			return p;
+		}
+	}
+
+	if (editlen>=MLINES)
+		return -1;
+
+	new = (BasTextLine *)malloc(sizeof(BasTextLine));
+	if (!new)
+		return -2;
+
+	for(i=0;i<editlen;i++) {
+		if (editlines[i]->index > p)
+			break;
+	}
+
+	if (i<editlen) {
+		memmove(editlines+i, editlines+i+1, (editlen-i)*sizeof(BasTextLine *));
+	}
+
+	strcpy(new->line, line);
+	new->index = p;
+
+	editlines[i] = new;
+	editlen++;
+
+	return p;
+}
+
+void basedit_list(int start, int end)
+{
+	int i;
+	if (end == -1) {
+		end = 0x7FFF;
+	}
+
+	basPrintf("Total lines: %u\n", editlen);
+
+	for (i=0;i<editlen;i++)
+	{
+		if (editlines[i]->index > end)
+			break;
+
+		if (editlines[i]->index < start)
+			continue;
+		basPrintf("%s\n", editlines[i]->line);
+	}
+
+//	basPrintf("Listing... from %u to %u\n", start, end);
+}
+
+typedef struct {
+	int sindex;
+	int index;
+	int line;
+	int pos;
+}TRunData;
+
+TRunData run_data;
+
+int run_data_reader(void *data)
+{
+	TRunData *d = (TRunData *)data;
+	int a;
+	
+	if (d->line>=editlen)
+		return EOF;
+
+	while (editlines[d->line]->index < d->sindex) {
+		d->line++;
+	}
+
+	if (d->line>=editlen)
+		return EOF;
+
+
+	if ( editlines[d->line]->line[d->pos] == 0 ) {
+		d->line++;
+		d->pos=0;
+
+		if (d->line < editlen) {
+			d->index = editlines[d->line]->index;
+			return '\n';
+		}
+
+		return EOF;
+	}
+
+	a = editlines[d->line]->line[d->pos];
+
+	d->pos++;
+	return a;
+}
+
+
+int basedit_run(int start)
+{
+	StreamReader reader;
+	BasTokenizer tokenizer;
+	BasNode *rootdirect = NULL;
+
+	int i;
+	run_data.pos = 0;
+	run_data.line = 0;
+	run_data.sindex = start;
+	run_data.index = 0;
+	stream_reader_init(&reader, run_data_reader, &run_data);
+	bas_token_init(&tokenizer, &reader);
+	i = BasBlock(&rootdirect, &tokenizer, 0);
+
+	if (i==0 && rootdirect) {
+		tt_putchar(10);
+		basexec(rootdirect, 0);
+		BasNodeFree(&rootdirect);
+		return;
+	}
+
+	BasNodeFree(&rootdirect);
+}
+
+char read_buffer[81];
 
 int basedit_load(char *filename)
 {
 	FILE *fp;
+
+	if (filename==NULL) {
+		basPrintf("load <filename>");
+		return 0;
+	}
 
 	if (editlines==NULL)
 		basedit_init();
 	if (editlines==NULL)
 		return 0;
 
-        fp = fopen(filename, "rt");
+    fp = fopen(filename, "rt");
 	if (!fp) {
 		return 0;
 	}
-		
+
+	while(read_line(fp, read_buffer, 80)) {
+		int ln=0;
+		sscanf(read_buffer, "%d", &ln);
+		basedit_store(ln, read_buffer);
+	}
+
 	fclose(fp);
 	return 1;
 }
@@ -84,6 +233,17 @@ void basedit_line()
 	bas_token_init(&tokenizer, &reader);
 	i = BasBlock(&rootdirect, &tokenizer, BAS_DIRECT);
 	if (i==BAS_STORE) {
+/*
+        int j=strlen(direct_data.buffer);
+		while (j>0 && direct_data.buffer[j-1]==' ')
+			j--;
+		direct_data.buffer[j]=0;
+*/
+		{
+			int v = basedit_store(atoi(tokenizer.last.content), direct_data.buffer);
+			if (v<0)
+				basPrintf("Out of memory");
+		}
 		// BasNodeFree(&rootdirect);
 		return;
 	}

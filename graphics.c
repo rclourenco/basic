@@ -497,7 +497,6 @@ unsigned char screentext[1024];
 int tt_getline(char *buffer, int max)
 {
 	int i=0;
-	int j=0;
 	char *start = screentext+Cursor.r*40;
 	if (Cursor.r>0 && screentext[(Cursor.r-1)*40+39]!=10)
 		start = screentext+(Cursor.r-1)*40;
@@ -513,6 +512,9 @@ int tt_getline(char *buffer, int max)
 			break;
 		buffer[i]=start[i];
 	}
+
+	while (i>0 && (buffer[i-1]==10 || buffer[i-1]==' '))
+		i--;
 	buffer[i]=0;
 	return i;
 }

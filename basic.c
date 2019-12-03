@@ -20,13 +20,17 @@ void BasExpressionListFree(BasExpressionList *el);
 void BasVarListFree(BasVarList *vl);
 
 BasCommandDef basCommands[] = {
-	"run",  cmdRun,
-	"list", cmdList,
-	"quit", cmdQuit,
-	"fre",  cmdFre,
-	"cls",  cmdCls,
-	"color", cmdColor,
+	"run",    cmdRun,
+	"list",   cmdList,
+	"quit",   cmdQuit,
+	"fre",    cmdFre,
+	"cls",    cmdCls,
+	"color",  cmdColor,
 	"locate", cmdLocate,
+	"list",   cmdList,
+	"load",   cmdLoad,
+	"save",   cmdSave,
+	"run",    cmdRun,
 	NULL, cmdNone
 };
 

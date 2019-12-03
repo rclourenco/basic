@@ -191,14 +191,14 @@ void command_args(BasCommandNode *x)
 }
 
 
-TNumber cmdNumber(int i)
+TNumber cmdNumber(int i, int d)
 {
 	if (i<cmdCount) {
 		if(cmdArgs[i].type == enumber) {
 			return cmdArgs[i].t.number;
 		}
 	}
-	return 0;
+	return d;
 }
 
 char *cmdString(int i)
@@ -222,9 +222,12 @@ void exec_command(BasCommandNode *x)
 	{
 		case cmdFre:   basPrintf("%u Bytes\n", coreleft()); break;
 		case cmdCls:   tt_clear(); break;
-		case cmdColor: tt_color(cmdNumber(0)); if (cmdCount > 1) tt_bgcolor(cmdNumber(1)); break;
-		case cmdLocate: tt_locate(cmdNumber(0), cmdNumber(1)); break;
+		case cmdColor: tt_color(cmdNumber(0,0)); if (cmdCount > 1) tt_bgcolor(cmdNumber(1,0)); break;
+		case cmdLocate: tt_locate(cmdNumber(0,0), cmdNumber(1,0)); break;
 		case cmdQuit:  branch=-2;  break;
+		case cmdList:  basedit_list(cmdNumber(0, 0), cmdNumber(1, -1)); break;
+		case cmdRun:   basedit_run(cmdNumber(0, 0)); break;
+		case cmdLoad:  basedit_load(cmdString(0)); break;
 	}
 }
 
