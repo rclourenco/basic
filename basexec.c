@@ -284,6 +284,16 @@ void basexec(BasNode *root, int tab)
 		BasNode *cur = root;
 
 		while(cur) {
+			if (kbhit()) {
+				int k=getch();
+				if (k==0)
+					getch();
+				if (k==27) {
+					branch=0x7FFF;
+					break;
+				}
+			}
+
 			switch(cur->type)
 			{
 				case BAS_FOR:

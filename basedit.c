@@ -25,6 +25,25 @@ void basedit_init()
 	editlines = (BasTextLine **)malloc(sizeof(BasTextLine *)*MLINES);
 }
 
+int basedit_delete(int p)
+{
+	int i;
+	if (p<0)
+		return -1;
+
+	for (i=0;i<editlen;i++) {
+		if (editlines[i]->index == p) {
+			if (editlines[i])
+				free(editlines[i]);
+			editlen--;
+			memmove(editlines+i, editlines+i+1, (editlen-i)*sizeof(BasTextLine *));
+			editlines[editlen] = NULL;
+			return 1;
+		}
+	}
+	return 1;
+}
+
 int basedit_store(int p,  char *line)
 {
 	int i=0;
@@ -54,7 +73,7 @@ int basedit_store(int p,  char *line)
 	}
 
 	if (i<editlen) {
-		memmove(editlines+i, editlines+i+1, (editlen-i)*sizeof(BasTextLine *));
+		memmove(editlines+i+1, editlines+i, (editlen-i)*sizeof(BasTextLine *));
 	}
 
 	strcpy(new->line, line);
@@ -64,6 +83,19 @@ int basedit_store(int p,  char *line)
 	editlen++;
 
 	return p;
+}
+
+void basedit_free()
+{
+	int  i;
+	for(i=0;i<editlen;i++)
+	{
+		if (editlines[i]) {
+			free(editlines[i]);
+			editlines[i]=NULL;
+		}
+	}
+	editlen = 0;
 }
 
 void basedit_list(int start, int end)
@@ -131,6 +163,7 @@ int run_data_reader(void *data)
 	return a;
 }
 
+extern int branch;
 
 int basedit_run(int start)
 {
@@ -139,6 +172,7 @@ int basedit_run(int start)
 	BasNode *rootdirect = NULL;
 
 	int i;
+	branch = -1;
 	run_data.pos = 0;
 	run_data.line = 0;
 	run_data.sindex = start;
@@ -173,6 +207,26 @@ int basedit_load(char *filename)
 	if (editlines==NULL)
 		return 0;
 
+	if (editlen>0) {
+		char fc;
+		basPrintf("Unsaved previous file\n[S]ave, [D]iscard, [C]ancel? ");
+		tt_getline(read_buffer, 80);
+		sscanf(read_buffer, "%c", &fc);
+		switch(fc)
+	       	{
+			case 'S':
+			case 's': return 0;
+				break;
+			case 'D':
+			case 'd':
+				  basedit_free();
+				break;
+			default:
+				return 0;
+
+		}
+	}
+
 	fp = fopen(filename, "rt");
 	if (!fp) {
 		basPrintf("Cannot open \"%s\"", filename);
@@ -181,12 +235,14 @@ int basedit_load(char *filename)
 
 	while (!feof(fp)) {
 		int ln=0;
+		int n=0;
+		char fc=0;
 		if(!read_line(fp, read_buffer, 80))
 			continue;
 
-		sscanf(read_buffer, "%d", &ln);
-		//basPrint("%u");
-		basedit_store(ln, read_buffer);
+		n = sscanf(read_buffer, "%d %c", &ln, &fc);
+		if (n==2)
+			basedit_store(ln, read_buffer);
 	}
 
 	fclose(fp);
@@ -245,7 +301,14 @@ void basedit_line()
 		direct_data.buffer[j]=0;
 */
 		{
-			int v = basedit_store(atoi(tokenizer.last.content), direct_data.buffer);
+			int ln=-1;
+			char fc=0;
+			int v, n;
+			n = sscanf(direct_data.buffer, "%d %c", &ln, &fc);
+			if (n==2)
+				v = basedit_store(ln, direct_data.buffer);
+			else
+				v = basedit_delete(ln);
 			if (v<0)
 				basPrintf("Out of memory");
 		}
