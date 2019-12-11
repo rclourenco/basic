@@ -227,7 +227,9 @@ void exec_command(BasCommandNode *x)
 		case cmdQuit:  branch=-2;  break;
 		case cmdList:  basedit_list(cmdNumber(0, 0), cmdNumber(1, -1)); break;
 		case cmdRun:   basedit_run(cmdNumber(0, 0)); break;
-		case cmdLoad:  basedit_load(cmdString(0)); break;
+		case cmdLoad:  basedit_load(cmdString(0));   break;
+		//case cmdSave:  basedit_save(cmdString(0)); break;
+		case cmdFiles: basedit_files(cmdString(0), cmdString(1));  break;
 	}
 }
 

@@ -31,6 +31,8 @@ BasCommandDef basCommands[] = {
 	"load",   cmdLoad,
 	"save",   cmdSave,
 	"run",    cmdRun,
+	"files",  cmdFiles,
+	"exec",   cmdExec,
 	NULL, cmdNone
 };
 

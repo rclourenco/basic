@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <alloc.h>
+#include <dirent.h>
+#include <sys/types.h>
+#include <string.h>
 #include "basic.h"
 #include "graphics.h"
 
@@ -105,7 +108,7 @@ void basedit_list(int start, int end)
 		end = 0x7FFF;
 	}
 
-	basPrintf("Total lines: %u\n", editlen);
+	// basPrintf("Total lines: %u\n", editlen);
 
 	for (i=0;i<editlen;i++)
 	{
@@ -118,6 +121,91 @@ void basedit_list(int start, int end)
 	}
 
 //	basPrintf("Listing... from %u to %u\n", start, end);
+}
+
+int match(char *subject, char *pattern)
+{
+	char *tmp;
+	int min = 0;
+	while (*pattern)
+	{
+		switch(*pattern)
+		{
+			case '*': 
+				  min = 0;
+				  while (*pattern && (*pattern == '*' || *pattern == '?')) {
+					  if (*pattern == '?')
+						  min++;
+					  pattern++;
+				  }
+
+				  while (*subject && *subject != *pattern) {
+					 if (min>0)
+						 min--;
+					 subject++;
+				  }
+				  
+				  if (min)
+					  return 0;
+				  break;
+			case '?':
+				  if (!*subject)
+					  return 0;
+				  subject++;
+				  pattern++;
+				  
+				  break;
+			default:
+				  if (*pattern!=*subject)
+					  return 0;
+				  subject++;
+				  pattern++;
+		}
+	}
+
+	return *subject ? 0: 1;
+}
+
+void basedit_files(char *filespec, char *mask)
+{
+	struct dirent *ent;
+	DIR *d;
+	char *maskx = filespec;
+	char *sep;
+	int fix=0;
+
+	sep = strrchr(filespec, '/');
+
+	if (sep) {
+		maskx = sep+1;
+		*sep = '\0';
+		if (sep==filespec)
+			d = opendir("/");
+		else
+	        	d = opendir(filespec);
+	}
+	else {
+		maskx = filespec;
+	        d = opendir(".");
+	}
+
+	if (!d) {
+		basPrintf("Invalid directory");
+		if (sep)
+			*sep = '/';
+		return;
+	}
+
+	while ((ent=readdir(d))!=NULL) {
+		if (maskx == NULL || maskx[0]=='\0' || match(ent->d_name, maskx))	
+			basPrintf("%s\n", ent->d_name);
+	}
+
+	if (sep)
+		*sep = '/';
+
+	closedir(d);
+
 }
 
 typedef struct {
