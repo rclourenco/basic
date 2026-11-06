@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include "basic.h"
+#include "graphics.h"
 
 size_t nvariables=0;
 Variable variables[MAXVARS];
@@ -220,7 +221,11 @@ void exec_command(BasCommandNode *x)
 
 	switch (x->def->cmd)
 	{
+#ifdef GRAPHICS_SDL
+		case cmdFre:   basPrintf("%lu Bytes\n", sysfree()); break;
+#else
 		case cmdFre:   basPrintf("%u Bytes\n", coreleft()); break;
+#endif
 		case cmdCls:   tt_clear(); break;
 		case cmdColor: tt_color(cmdNumber(0,0)); if (cmdCount > 1) tt_bgcolor(cmdNumber(1,0)); break;
 		case cmdLocate: tt_locate(cmdNumber(0,0), cmdNumber(1,0)); break;

@@ -21,6 +21,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
+/* basic.c owns main(); don't let SDL rename it */
+#define SDL_MAIN_HANDLED
 #include <SDL.h>
 
 #ifndef GRAPHICS_SDL
@@ -151,6 +156,7 @@ static void gfx_init()
 	if (gfx_window)
 		return;
 
+	SDL_SetMainReady();
 	if (!SDL_WasInit(SDL_INIT_VIDEO) && SDL_Init(SDL_INIT_VIDEO)!=0) {
 		fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
 		exit(1);
@@ -371,6 +377,18 @@ void delay(unsigned ms)
 		if (el>=ms) break;
 		SDL_Delay((ms-el)>5 ? 5 : (ms-el));
 	}
+}
+
+/* free memory for the FRE command (replaces Turbo C coreleft()) */
+unsigned long sysfree()
+{
+#if defined(_SC_AVPHYS_PAGES) && defined(_SC_PAGESIZE)
+	long pages=sysconf(_SC_AVPHYS_PAGES);
+	long psize=sysconf(_SC_PAGESIZE);
+	if (pages>0 && psize>0)
+		return (unsigned long)pages*(unsigned long)psize;
+#endif
+	return 0;
 }
 
 /* ------------------------------------------------------------------ */

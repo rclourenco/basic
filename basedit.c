@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
+#ifndef GRAPHICS_SDL
 #include <alloc.h>
+#endif
 #include <dirent.h>
 #include <sys/types.h>
 #include <string.h>
@@ -273,10 +275,11 @@ int basedit_run(int start)
 		tt_putchar(10);
 		basexec(rootdirect, 0);
 		BasNodeFree(&rootdirect);
-		return;
+		return 0;
 	}
 
 	BasNodeFree(&rootdirect);
+	return i;
 }
 
 char read_buffer[81];

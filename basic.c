@@ -5,6 +5,8 @@
 #include "basic.h"
 #include "graphics.h"
 
+int syswritechar(int c);
+
 BasNode *rootnode=NULL;
 
 void BasGotoNodeFree(BasGotoNode *);
@@ -997,6 +999,7 @@ int parse(const char *filename)
  *
  */
 
+#ifndef GRAPHICS_SDL
 void sysgetxy(int *x, int *y)
 {
 	unsigned char col, row;
@@ -1021,6 +1024,8 @@ void syssetxy(int x, int y)
 		int 10h;
 	}
 }
+
+#endif /* !GRAPHICS_SDL */
 
 #define USE_GRAPHICS
 
@@ -1054,6 +1059,9 @@ int syswritechar(int c)
 
 void init_system()
 {
+#ifdef GRAPHICS_SDL
+	modo13h();
+#else
 	asm {
 		mov ax, 13h;
 		int 10h;
@@ -1063,6 +1071,7 @@ void init_system()
 		mov bl, 2;
 		int 10h;
 	}
+#endif
 	basSetPutchar(syswritechar);
 	basSetGetchar(tt_getchar);
 	SetOverScan(9);
@@ -1075,10 +1084,14 @@ void init_system()
 
 void close_system() 
 {
+#ifdef GRAPHICS_SDL
+	modo3h();
+#else
 	asm {
 		mov ax, 3h;
 		int 10h;
 	}
+#endif
 	basSetPutchar(putchar);
 	basSetGetchar(getchar);
 }
@@ -1102,7 +1115,11 @@ int main(int argc, char **argv)
 	init_system();
 	list(argv[1]);
 	run();
+#ifdef GRAPHICS_SDL
+	xgetch();	/* wait for a key in the SDL window, not on stdin */
+#else
 	getchar();
+#endif
 	close_system();
 
 	return 0;

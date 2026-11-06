@@ -6,8 +6,12 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define strcasecmp strcmpi
-#define isblank(c) ((c)==' ' || (c)=='\t')
+#ifdef GRAPHICS_SDL
+	#include <strings.h>	/* strcasecmp; isblank comes from ctype.h */
+#else
+	#define strcasecmp strcmpi
+	#define isblank(c) ((c)==' ' || (c)=='\t')
+#endif
 
 typedef int TNumber;
 
@@ -242,6 +246,7 @@ void basexec(BasNode *root, int tab);
 int basexec_quit();
 
 void basSetPutchar(int (*func)(int)); 
+void basSetGetchar(int (*func)(void));
 
 int basPrintf(const char *format, ...);
 extern int (*basGetchar)(void);
@@ -249,6 +254,7 @@ extern int (*basGetchar)(void);
 void basedit_loop();
 void basedit_list(int start, int end);
 int basedit_run(int start);
+int basedit_load(char *filename);
 void basedit_files(char *path, char *mask);
 
 #endif

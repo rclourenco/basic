@@ -11,6 +11,7 @@
 	void delay(unsigned ms);
 	void gfx_present(void);   /* force the 320x200 buffer onto the window */
 	void gfx_shutdown(void);  /* close the SDL window */
+	unsigned long sysfree(void); /* free memory, replaces coreleft() */
 #endif
 	
 typedef struct{
