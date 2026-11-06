@@ -24,6 +24,9 @@
 #ifndef _WIN32
 #include <unistd.h>
 #endif
+#ifdef __APPLE__
+#include <mach/mach.h>
+#endif
 /* basic.c owns main(); don't let SDL rename it */
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
@@ -382,7 +385,14 @@ void delay(unsigned ms)
 /* free memory for the FRE command (replaces Turbo C coreleft()) */
 unsigned long sysfree()
 {
-#if defined(_SC_AVPHYS_PAGES) && defined(_SC_PAGESIZE)
+#if defined(__APPLE__)
+	/* macOS has no _SC_AVPHYS_PAGES: ask the Mach VM statistics */
+	vm_statistics64_data_t vm;
+	mach_msg_type_number_t count=HOST_VM_INFO64_COUNT;
+	if (host_statistics64(mach_host_self(), HOST_VM_INFO64,
+			(host_info64_t)&vm, &count)==KERN_SUCCESS)
+		return (unsigned long)vm.free_count*(unsigned long)vm_page_size;
+#elif defined(_SC_AVPHYS_PAGES) && defined(_SC_PAGESIZE)
 	long pages=sysconf(_SC_AVPHYS_PAGES);
 	long psize=sysconf(_SC_PAGESIZE);
 	if (pages>0 && psize>0)
