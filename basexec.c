@@ -102,6 +102,15 @@ void exec_for(BasForNode *x, int tab)
 		basexec(x->block, tab+1);
 		if (branch != -1)
 			return;
+		if (kbhit()) {
+			int k=getch();
+			if (k==0)
+				getch();
+			if (k==27) {
+				branch=0x7FFF;
+				return;
+			}
+		}
 	}
 	set_var(i, counter);
 }
@@ -235,14 +244,15 @@ void exec_command(BasCommandNode *x)
 		case cmdLoad:  basedit_load(cmdString(0));   break;
 		//case cmdSave:  basedit_save(cmdString(0)); break;
 		case cmdFiles: basedit_files(cmdString(0), cmdString(1));  break;
+        default: break;
 	}
 }
 
 char input_buffer[128];
 void exec_input(BasInputNode *x, int tab)
 {
-	BasVarList *v;	
-	if (x->prompt)
+	BasVarList *v;
+	if (x->prompt[0])
 		basPrintf("%s", x->prompt);
 
 	v = x->list;
@@ -391,6 +401,8 @@ TNumber aton(const char *src)
 TNumber antof(const char *src, size_t n)
 {
   char buffer[20];
+  if (n>19)
+      n = 19;
   strncpy(buffer,src,n);
   buffer[n] = '\0';
   return aton(buffer);
@@ -448,7 +460,7 @@ Entry call_function(RpnToken *token, Entry *args, size_t f, size_t n)
   }
   else if(!strcmp(buffer, "rnd")) {
 	re.type = enumber;
-	re.t.number = v1 != 0 ? rand()%v1 : rand();  
+	re.t.number = v1 != 0 ? rand()%(int)v1 : rand();  
   }
   return re;
 }
@@ -483,7 +495,7 @@ TNumber operation(RpnToken *token, Entry *e1, Entry *e2)
     case '>': r = v1>v2; break;
     case '<': r = v1<v2; break;
 
-    case '%': r = v1%v2; break;
+    case '%': r = (int)v1%(int)v2; break;
     //case '^': r = pow(v1,v2); break;
   }
 

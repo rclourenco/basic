@@ -176,7 +176,12 @@ void basedit_files(char *filespec, char *mask)
 	char *sep;
 	int fix=0;
 
-	sep = strrchr(filespec, '/');
+    fprintf(stderr, "Basedit_files Debug Point 0 %p\n", filespec);
+
+    if (filespec)
+	    sep = strrchr(filespec, '/');
+
+    fprintf(stderr, "Basedit_files Debug Point 1 %s\n", filespec);
 
 	if (sep) {
 		maskx = sep+1;
@@ -184,7 +189,7 @@ void basedit_files(char *filespec, char *mask)
 		if (sep==filespec)
 			d = opendir("/");
 		else
-	        	d = opendir(filespec);
+	        d = opendir(filespec);
 	}
 	else {
 		maskx = filespec;
@@ -197,6 +202,8 @@ void basedit_files(char *filespec, char *mask)
 			*sep = '/';
 		return;
 	}
+
+    fprintf(stderr, "Basedit_files Debug Point 2\n");
 
 	while ((ent=readdir(d))!=NULL) {
 		if (maskx == NULL || maskx[0]=='\0' || match(ent->d_name, maskx))	
@@ -301,7 +308,7 @@ int basedit_load(char *filename)
 	if (editlen>0) {
 		char fc;
 		basPrintf("Unsaved previous file\n[S]ave, [D]iscard, [C]ancel? ");
-		tt_getline(read_buffer, 80);
+		basReadline(read_buffer, 80);
 		sscanf(read_buffer, "%c", &fc);
 		switch(fc)
 	       	{
@@ -377,7 +384,7 @@ void basedit_line()
 	BasNode *rootdirect = NULL;
 
 	int i;
-	i = tt_getline(direct_data.buffer, 80);
+	i = tt_getline((char *)direct_data.buffer, 80);
 	direct_data.buffer[i] = 0;
 
 	direct_data.pos=0;
@@ -395,9 +402,9 @@ void basedit_line()
 			int ln=-1;
 			char fc=0;
 			int v, n;
-			n = sscanf(direct_data.buffer, "%d %c", &ln, &fc);
+			n = sscanf((char *)direct_data.buffer, "%d %c", &ln, &fc);
 			if (n==2)
-				v = basedit_store(ln, direct_data.buffer);
+				v = basedit_store(ln, (char *)direct_data.buffer);
 			else
 				v = basedit_delete(ln);
 			if (v<0)

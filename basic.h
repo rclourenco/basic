@@ -251,6 +251,8 @@ void basSetGetchar(int (*func)(void));
 int basPrintf(const char *format, ...);
 extern int (*basGetchar)(void);
 
+int basReadline(char *buffer, size_t len);
+
 void basedit_loop();
 void basedit_list(int start, int end);
 int basedit_run(int start);
