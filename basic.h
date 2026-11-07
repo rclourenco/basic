@@ -92,6 +92,8 @@ typedef struct {
 #define BAS_INPUT 7
 #define BAS_GOTO  8
 #define BAS_COMMAND 9
+#define BAS_GOSUB 10
+#define BAS_RETURN 11
 #define BAS_DIRECT 100
 
 #define BAS_STORE  101
@@ -201,11 +203,17 @@ typedef struct {
 } BasGotoNode;
 
 typedef struct {
+	int goline;
+} BasGosubNode;
+
+typedef struct {
 	char *name;
 	enum { 
 		cmdNone, cmdFre,  cmdCls,   cmdList, 
 		cmdRun,  cmdQuit, cmdColor, cmdLocate,
-	       	cmdLoad, cmdSave, cmdFiles, cmdExec
+	    cmdLoad, cmdSave, cmdFiles, cmdExec,
+		cmdLine, cmdBox,  cmdCircle, cmdPoint
+
        	} cmd;
 } BasCommandDef;
 

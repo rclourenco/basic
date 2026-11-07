@@ -244,6 +244,11 @@ void exec_command(BasCommandNode *x)
 		case cmdLoad:  basedit_load(cmdString(0));   break;
 		//case cmdSave:  basedit_save(cmdString(0)); break;
 		case cmdFiles: basedit_files(cmdString(0), cmdString(1));  break;
+		case cmdLine: DrawLine(cmdNumber(0, 0), cmdNumber(1, 0), cmdNumber(2, 0), cmdNumber(3,0)); break;
+		case cmdBox:  DrawRect(cmdNumber(0, 0), cmdNumber(1, 0), cmdNumber(2, 0), cmdNumber(3,0), cmdNumber(4,0)); break;
+		case cmdCircle: dcircle(cmdNumber(0, 0), cmdNumber(1, 0), cmdNumber(2, 0)); break;
+		case cmdPoint: DrawPixel(cmdNumber(0, 0), cmdNumber(1, 0), cmdNumber(2, 0)); break;
+
         default: break;
 	}
 }
@@ -286,21 +291,33 @@ void exec_assignment(BasAssignmentNode *x, int tab)
 
 BasNode *find_node(BasNode *node, int line)
 {
-	while(node) {
-		if (node->ln == line)
+	while (node) {
+		if (node->ln == line) {
 			return node;
+        }
 
 		node = node->next;
 	}
 	return NULL;
 }
 
+BasNode *rtnode = NULL;
+BasNode *startnode = NULL;
+
 void basexec(BasNode *root, int tab)
 {
+
+    if (tab==0) {
+        startnode = root;
+        rtnode = NULL;
+    }
+
 	if (root!=NULL) {
 		BasNode *cur = root;
 
 		while(cur) {
+            int gosub_branch = -1;
+
 			if (kbhit()) {
 				int k=getch();
 				if (k==0)
@@ -334,12 +351,36 @@ void basexec(BasNode *root, int tab)
 				case BAS_GOTO:
 					branch = ((BasGotoNode *)cur->data)->goline;
 					break;
+                case BAS_GOSUB:
+                    if (rtnode != NULL) {
+                        basPrintf("Error: Cannot GOSUB, stack full\n");
+                        return;
+                    }
+    				gosub_branch = ((BasGosubNode *)cur->data)->goline;
+                    rtnode = cur;
+                    break;
+                case BAS_RETURN:
+                    if (rtnode == NULL) {
+                        basPrintf("Error: Cannot RETURN, stack empty\n");
+                        return;
+                    }
+    				cur = rtnode;
+                    rtnode = NULL;
+                    break;
+                default:
+                    break;
 			}
 
-			if (branch != -1) {
+            if (gosub_branch != -1) {
+                cur = find_node(startnode, gosub_branch);
+                if (!cur)
+                    return;
+            }
+            else if (branch != -1) {
 				cur = find_node(root, branch);
-				if (!cur)
+				if (!cur) {
 					return;
+                }
 				branch = -1;
 			}
 			else {
