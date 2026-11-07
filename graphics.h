@@ -1,5 +1,18 @@
 #ifndef _GRAPHICS_H
 	#define _GRAPHICS_H
+
+#ifdef GRAPHICS_SDL
+/* SDL2 build (graphics_sdl.c): no segmented memory, no conio.h */
+	#ifndef far
+		#define far
+	#endif
+	int  kbhit(void);      /* DOS conio-style keyboard emulation */
+	int  getch(void);      /* extended keys return 0, then the scan code */
+	void delay(unsigned ms);
+	void gfx_present(void);   /* force the 320x200 buffer onto the window */
+	void gfx_shutdown(void);  /* close the SDL window */
+	unsigned long sysfree(void); /* free memory, replaces coreleft() */
+#endif
 	
 typedef struct{
 	unsigned w,h;
