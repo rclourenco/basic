@@ -15,4 +15,4 @@
 
 ### Sample
 
-![VIDEO](media/maze.mp4)
+![Video](media/maze.mp4)
