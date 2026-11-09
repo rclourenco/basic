@@ -10,6 +10,7 @@ int syswritechar(int c);
 BasNode *rootnode=NULL;
 
 void BasGotoNodeFree(BasGotoNode *);
+void BasGosubNodeFree(BasGosubNode *);
 void BasForNodeFree(BasForNode *);
 void BasIfNodeFree(BasIfNode *);
 void BasInputNodeFree(BasInputNode *);
@@ -35,6 +36,10 @@ BasCommandDef basCommands[] = {
 	"run",    cmdRun,
 	"files",  cmdFiles,
 	"exec",   cmdExec,
+	"line",   cmdLine,
+	"box",    cmdBox,
+	"circle", cmdCircle,
+	"point",  cmdPoint,
 	NULL, cmdNone
 };
 
@@ -59,7 +64,8 @@ void BasNodeFree(BasNode **link) {
 	BasNodeFree(&((*link)->next));
 	switch((*link)->type)
 	{
-		case BAS_GOTO: BasGotoNodeFree((BasGotoNode *)(*link)->data); break;
+		case BAS_GOTO:   BasGotoNodeFree((BasGotoNode *)(*link)->data); break;
+		case BAS_GOSUB:  BasGosubNodeFree((BasGosubNode *)(*link)->data); break;
 		case BAS_FOR:  BasForNodeFree((BasForNode *)(*link)->data); break;
 		case BAS_IF:   BasIfNodeFree((BasIfNode *)(*link)->data); break;
 		case BAS_PRINT:      BasPrintNodeFree((BasPrintNode *)(*link)->data); break;
@@ -81,6 +87,19 @@ BasNode *BasGotoNodeCreate(BasNode **link, int ln)
 	return BasNodeCreate(link, BAS_GOTO, n, ln);
 }
 
+BasNode *BasGosubNodeCreate(BasNode **link, int ln)
+{
+	BasGosubNode *n=(BasGosubNode *)malloc(sizeof(BasGosubNode));
+	if (!n)
+		return NULL;
+
+	return BasNodeCreate(link, BAS_GOSUB, n, ln);
+}
+
+BasNode *BasReturnNodeCreate(BasNode **link, int ln)
+{
+	return BasNodeCreate(link, BAS_RETURN, NULL, ln);
+}
 
 BasNode *BasForNodeCreate(BasNode **link, int ln)
 {
@@ -513,6 +532,29 @@ void BasGotoNodeFree(BasGotoNode *f)
 	free(f);
 }
 
+int BuildGosubBlock(BasNode *n, BasTokenizer *tokenizer)
+{
+	BasGosubNode *f = (BasGosubNode *)n->data;
+
+	BasToken *t;
+
+	t=bas_token_expect(tokenizer, tokenNumber);
+	if (!t)
+		return -4;
+	f->goline = atoi(t->content);
+	return 0;
+}
+
+void BasGosubNodeFree(BasGosubNode *f) 
+{
+	free(f);
+}
+
+int BuildReturnBlock(BasNode *n, BasTokenizer *tokenizer)
+{
+	return 0;
+}
+
 int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type)
 {
 	BasToken *token;
@@ -594,6 +636,34 @@ int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type)
 				link = &n->next;
 				{
 					int r=BuildGotoBlock(n, tokenizer);
+					if(r) {
+						return r;
+					}
+				}
+			}
+			else if(!strcasecmp(token->content, "gosub")) {
+				if (type==BAS_DIRECT) return -BAS_DIRECT;
+
+				n = BasGosubNodeCreate(link, ln);
+				if(!n)
+					return -2;
+				link = &n->next;
+				{
+					int r=BuildGosubBlock(n, tokenizer);
+					if(r) {
+						return r;
+					}
+				}
+			}
+			else if(!strcasecmp(token->content, "return")) {
+				if (type==BAS_DIRECT) return -BAS_DIRECT;
+
+				n = BasReturnNodeCreate(link, ln);
+				if(!n)
+					return -2;
+				link = &n->next;
+				{
+					int r=BuildReturnBlock(n, tokenizer);
 					if(r) {
 						return r;
 					}
