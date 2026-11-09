@@ -1,3 +1,5 @@
+build: basicsdl
+
 basic: basic.c basic.h basrpn.c basexec.c
 	gcc -o basic basic.c basrpn.c basexec.c
 
