@@ -5,6 +5,7 @@
 #endif
 #include <dirent.h>
 #include <sys/types.h>
+#include <sys/errno.h>
 #include <string.h>
 #include "basic.h"
 #include "graphics.h"
@@ -123,6 +124,41 @@ void basedit_list(int start, int end)
 	}
 
 //	basPrintf("Listing... from %u to %u\n", start, end);
+}
+
+int basedit_save(char *filename)
+{
+	FILE *fp;
+
+	if (filename==NULL) {
+		basPrintf("save <filename>");
+		return 0;
+	}
+
+    // TODO: check if file exists, ask question
+
+    fp = fopen(filename, "w");
+    if (!fp) {
+        basPrintf("Error [%d] %s", errno, strerror(errno));
+        return errno;
+    }
+
+    int end = 0x7FFF;
+    int start = 0;
+    int i;
+	for (i=0;i<editlen;i++)
+	{
+		if (editlines[i]->index > end)
+			break;
+
+		if (editlines[i]->index < start)
+			continue;
+
+		fprintf(fp, "%s\n", editlines[i]->line);
+	}
+
+    fclose(fp);
+    return 0;
 }
 
 int match(char *subject, char *pattern)

@@ -242,7 +242,7 @@ void exec_command(BasCommandNode *x)
 		case cmdList:  basedit_list(cmdNumber(0, 0), cmdNumber(1, -1)); break;
 		case cmdRun:   basedit_run(cmdNumber(0, 0)); break;
 		case cmdLoad:  basedit_load(cmdString(0));   break;
-		//case cmdSave:  basedit_save(cmdString(0)); break;
+		case cmdSave:  basedit_save(cmdString(0)); break;
 		case cmdFiles: basedit_files(cmdString(0), cmdString(1));  break;
 		case cmdLine: DrawLine(cmdNumber(0, 0), cmdNumber(1, 0), cmdNumber(2, 0), cmdNumber(3,0)); break;
 		case cmdBox:  DrawRect(cmdNumber(0, 0), cmdNumber(1, 0), cmdNumber(2, 0), cmdNumber(3,0), cmdNumber(4,0)); break;
@@ -301,15 +301,43 @@ BasNode *find_node(BasNode *node, int line)
 	return NULL;
 }
 
-BasNode *rtnode = NULL;
+
+#define MAX_RETURN 256
+
+BasNode *rtstack[MAX_RETURN];
+int rtsp = 0;
+
+int rt_push(BasNode *n)
+{
+    if (rtsp < MAX_RETURN) {
+        rtstack[rtsp++] = n;
+        return rtsp;
+    }
+    return -1;
+}
+
+BasNode *rt_pop()
+{
+    if (rtsp > 0) {
+        return rtstack[--rtsp];
+    }
+    return NULL;
+}
+
+void rt_reset()
+{
+    rtsp = 0;
+}
+
 BasNode *startnode = NULL;
+
 
 void basexec(BasNode *root, int tab)
 {
 
     if (tab==0) {
         startnode = root;
-        rtnode = NULL;
+        rt_reset();
     }
 
 	if (root!=NULL) {
@@ -352,20 +380,17 @@ void basexec(BasNode *root, int tab)
 					branch = ((BasGotoNode *)cur->data)->goline;
 					break;
                 case BAS_GOSUB:
-                    if (rtnode != NULL) {
+                    if (rt_push(cur)<0) {
                         basPrintf("Error: Cannot GOSUB, stack full\n");
                         return;
                     }
     				gosub_branch = ((BasGosubNode *)cur->data)->goline;
-                    rtnode = cur;
                     break;
                 case BAS_RETURN:
-                    if (rtnode == NULL) {
+                    if (!(cur = rt_pop())) {
                         basPrintf("Error: Cannot RETURN, stack empty\n");
                         return;
                     }
-    				cur = rtnode;
-                    rtnode = NULL;
                     break;
                 default:
                     break;
