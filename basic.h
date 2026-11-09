@@ -265,6 +265,8 @@ void basedit_loop();
 void basedit_list(int start, int end);
 int basedit_run(int start);
 int basedit_load(char *filename);
+int basedit_save(char *filename);
+
 void basedit_files(char *path, char *mask);
 
 #endif
