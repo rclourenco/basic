@@ -6,6 +6,7 @@
 #include "graphics.h"
 
 int syswritechar(int c);
+int syswritechar_raw(int c);
 
 BasNode *rootnode=NULL;
 
@@ -155,6 +156,7 @@ BasVarList *BasVarListAdd(BasVarList **link, char *var)
 		return NULL;
 	strncpy(n->var,var,MLEN-1);
 	n->var[MLEN-1]='\0';
+    predefine_var(n->var, MLEN);
 	n->next=NULL;
 	*link = n;
 	return n;
@@ -212,12 +214,13 @@ int BuildForBlock(BasNode *n, BasTokenizer *tokenizer)
 	BasForNode *f = (BasForNode *)n->data;
 	BasToken *t;
 	t=bas_token_expect(tokenizer, TOKEN_NAME);
-	if(!t) {
+	if (!t) {
 		return -4;
 	}
 
 	strncpy(f->counter,t->content, MLEN-1);
 	f->counter[MLEN-1]='\0';
+
 
 	t=bas_token_expect_operator(tokenizer, "=");
 	if(!t) {
@@ -269,8 +272,8 @@ int BuildForBlock(BasNode *n, BasTokenizer *tokenizer)
 	}
 
 for_block:
+    predefine_var(f->counter, sizeof(f->counter));
 	return BasBlock(&f->block, tokenizer, BAS_FOR);
-
 }
 
 void BasForNodeFree(BasForNode *f)
@@ -498,6 +501,8 @@ int BuildAssignmentBlock(BasNode *n, BasToken *current, BasTokenizer *tokenizer)
 	r = BasBuildExpression(f->expr, tokenizer, BAS_EXPR_ASSIGN);
 	if (r)
 		return r;
+
+    predefine_var(f->var, MLEN);
 
 	/*
 	do {
@@ -775,6 +780,8 @@ int BasBuildExpression(BasExpression *e, BasTokenizer *tokenizer, int type)
 		i = BasTokenItemAdd(link, t);
 		if (!i)
 			return -4;
+        if (t->type == tokenVariable)
+            predefine_var(t->content, strlen(t->content));
 		link = &i->next;
 	} while (t && t->type != TOKEN_LINE);
 next:
@@ -1056,6 +1063,9 @@ int parse(const char *filename)
 	bas_token_init(&tokenizer, &reader);
 
 	r = BasBlock(&rootnode, &tokenizer, 0);
+    if (r == 0 && rootnode) {
+        prepare_vars();
+    }
 
 	fclose(fp);
 	return r;
@@ -1098,6 +1108,22 @@ void syssetxy(int x, int y)
 #endif /* !GRAPHICS_SDL */
 
 #define USE_GRAPHICS
+
+int syswritechar_raw(int c)
+{
+#ifdef USE_GRAPHICS
+    tt_putchar_raw(c);
+    return 1;
+#else
+	asm {
+		mov ah, 0xe;
+		mov al, byte ptr c;
+		mov bh, 0;
+		mov bl, 0x9;
+	    int 0x10;	
+	}
+#endif
+}
 
 int syswritechar(int c) 
 {
@@ -1143,6 +1169,7 @@ void init_system()
 	}
 #endif
 	basSetPutchar(syswritechar);
+    basSetPutcharRaw(syswritechar_raw);
 	basSetGetchar(tt_getchar);
 	SetOverScan(9);
 	TextBackGround=1;
@@ -1163,6 +1190,7 @@ void close_system()
 	}
 #endif
 	basSetPutchar(putchar);
+    basSetPutcharRaw(putchar);
 	basSetGetchar(getchar);
 }
 /*

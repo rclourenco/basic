@@ -786,23 +786,23 @@ void tt_locate(int c, int r)
 
 unsigned char screentext[1024];
 
-int tt_getline(char *buffer, int max)
+int tt_getline(unsigned char *buffer, int max)
 {
 	int i=0;
 	unsigned char *start = screentext+Cursor.r*40;
-	if (Cursor.r>0 && screentext[(Cursor.r-1)*40+39]!=10)
+	if (Cursor.r>0 && screentext[(Cursor.r-1)*40+39]!=PARAGRAPH)
 		start = screentext+(Cursor.r-1)*40;
 
 	if (max>80)
 		max = 80;
 
 	for( i=0; i<max; i++) {
-		if (start[i]==10)
+		if (start[i]==PARAGRAPH)
 			break;
 		buffer[i]=start[i];
 	}
 
-	while (i>0 && (buffer[i-1]==10 || buffer[i-1]==' '))
+	while (i>0 && (buffer[i-1]==PARAGRAPH || buffer[i-1]==' '))
 		i--;
 	buffer[i]=0;
 	return i;
@@ -822,8 +822,8 @@ void tt_clear()
 	Cursor.r = 0;
 	for (i=0;i<25;i++)
 	{
-		screentext[i*40+39] = 10;
-		pchar(39*8, i*8, 10);
+		screentext[i*40+39] = PARAGRAPH;
+		pchar(39*8, i*8, PARAGRAPH);
 	}
 }
 
@@ -839,12 +839,37 @@ void tt_bgcolor(int c)
 	FillColor = c;
 }
 
+void tt_putchar_raw(int c)
+{
+	screentext[Cursor.r*40+Cursor.c] = c;
+	pchar(Cursor.c*8, Cursor.r*8, c);
+	Cursor.c++;
+	if (Cursor.c>39) {
+		Cursor.c=0;
+		Cursor.r++;
+	}
+
+    if (Cursor.r > 24) {
+		Cursor.r = 24;
+		memmove(screen, screen+SCR_W*8, 192*SCR_W);
+		memset(&screen[192*SCR_W], TextBackGround, 8*SCR_W);
+
+		memmove(screentext, screentext+40, 40*24);
+		memset(screentext+24*40, ' ', 40);
+		screentext[24*40+39] = PARAGRAPH;
+		pchar(39*8, 24*8, PARAGRAPH);
+	}
+
+	if (gfx_window)
+		gfx_maybe_present();
+}
+
 void tt_putchar(int c)
 {
 	switch(c) {
 	case 10:
-		screentext[Cursor.r*40+39] = 10;
-		pchar(39*8, Cursor.r*8, 10);
+		screentext[Cursor.r*40+39] = PARAGRAPH;
+		pchar(39*8, Cursor.r*8, PARAGRAPH);
 		Cursor.c = 0;
 		Cursor.r++;
 	break;
@@ -879,8 +904,8 @@ void tt_putchar(int c)
 
 		memmove(screentext, screentext+40, 40*24);
 		memset(screentext+24*40, ' ', 40);
-		screentext[24*40+39] = 10;
-		pchar(39*8, 24*8, 10);
+		screentext[24*40+39] = PARAGRAPH;
+		pchar(39*8, 24*8, PARAGRAPH);
 	}
 
 	if (gfx_window)

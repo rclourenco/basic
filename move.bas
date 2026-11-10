@@ -7,4 +7,4 @@
 50 for B=0 to 3000
 60 next
 70 next
-
+80 goto 10

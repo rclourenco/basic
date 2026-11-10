@@ -315,6 +315,7 @@ int basedit_run(int start)
 	i = BasBlock(&rootdirect, &tokenizer, 0);
 
 	if (i==0 && rootdirect) {
+        prepare_vars();
 		tt_putchar(10);
 		basexec(rootdirect, 0);
 		BasNodeFree(&rootdirect);
@@ -420,7 +421,7 @@ void basedit_line()
 	BasNode *rootdirect = NULL;
 
 	int i;
-	i = tt_getline((char *)direct_data.buffer, 80);
+	i = tt_getline(direct_data.buffer, 80);
 	direct_data.buffer[i] = 0;
 
 	direct_data.pos=0;
@@ -473,8 +474,8 @@ void basedit_loop()
 	basPrintf("***** BASIC *****\n");
 	basPrintf("Ready.\n");
 
-	while ( (key=xgetch())!=27 ) {
-		
+	for(;;) {
+	    key = xgetch();	
 		switch(key) {
 			case 0:  
 				switch(xgetch())

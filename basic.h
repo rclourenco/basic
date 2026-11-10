@@ -232,9 +232,11 @@ void BasNodeFree(BasNode **link);
 extern size_t nvariables;
 extern Variable variables[MAXVARS];
 
-size_t define_var(const char *name, size_t n);
-TNumber set_var(size_t idx, TNumber value);
-TNumber get_var(size_t idx);
+void prepare_vars();
+int predefine_var(const char *name, size_t n);
+int define_var(const char *name, size_t n);
+TNumber set_var(int idx, TNumber value);
+TNumber get_var(int idx);
 
 void iq_init(IndexQueue *iq, size_t max);
 void iq_push(IndexQueue *iq, size_t idx);
@@ -253,7 +255,8 @@ int BasRpnExpression(BasExpression *e);
 void basexec(BasNode *root, int tab);
 int basexec_quit();
 
-void basSetPutchar(int (*func)(int)); 
+void basSetPutchar(int (*func)(int));
+void basSetPutcharRaw(int (*func)(int)); 
 void basSetGetchar(int (*func)(void));
 
 int basPrintf(const char *format, ...);

@@ -6,3 +6,7 @@
 60 dy=rnd(19)+1
 70 box x,y,x+dx,y+dy
 80 goto 10
+120 for i = 0 to 199
+130 color i, 1
+140 line 0,i,319,i
+150 next

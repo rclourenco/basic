@@ -551,6 +551,11 @@ void tt_bgcolor(int c)
 	FillColor = c;
 }
 
+void tt_putchar_raw(int c)
+{
+    pchar(Cursor.c*8, Cursor.r*8, c);
+}
+
 void tt_putchar(int c) 
 {
 	//hide_cursor();

@@ -39,6 +39,8 @@ typedef struct{
 #define DEFAULT 0
 #define USER 1
 
+#define PARAGRAPH 0
+
 void pchar(int x,int y, unsigned char c);
 void writest(int x,int y,unsigned char *st);
 void fillscreen(char a);
@@ -98,9 +100,10 @@ void tt_locate(int c, int r);
 void tt_color(int c);
 void tt_bgcolor(int c);
 void tt_clear();
-int tt_getline(char *buffer, int max);
+int tt_getline(unsigned char *buffer, int max);
 void tt_init();
 void tt_putchar(int c);
+void tt_putchar_raw(int c);
 int tt_getchar();
 #endif
 

@@ -24,10 +24,16 @@ char basoutbuffer[2048];
 
 int (*basPutchar)(int) = putchar;
 int (*basGetchar)(void) = getchar;
+int (*basPutcharRaw)(int) = putchar;
 
 void basSetPutchar(int (*func)(int)) 
 {
 	basPutchar = func;
+}
+
+void basSetPutcharRaw(int (*func)(int)) 
+{
+	basPutcharRaw = func;
 }
 
 void basSetGetchar(int (*func)(void)) 
@@ -104,9 +110,10 @@ void exec_for(BasForNode *x, int tab)
 			return;
 		if (kbhit()) {
 			int k=getch();
-			if (k==0)
+			if (k==0) {
 				getch();
-			if (k==27) {
+            }
+            else if (k==17) {
 				branch=0x7FFF;
 				return;
 			}
@@ -167,7 +174,7 @@ void exec_print(BasPrintNode *x, int tab)
 			basPrintf("%d", result.t.number);
 		}
 		else if(result.type == echar) {
-			basPutchar(result.t.chr);
+			basPutcharRaw(result.t.chr);
 		}
 	
 		switch(l->separator) {
@@ -350,7 +357,7 @@ void basexec(BasNode *root, int tab)
 				int k=getch();
 				if (k==0)
 					getch();
-				if (k==27) {
+				if (k==17) {
 					branch=0x7FFF;
 					break;
 				}
@@ -637,41 +644,89 @@ Entry eval_rpn(RpnToken *tokenlist, IndexQueue *rpn)
 
 Variable variables[MAXVARS];
 
-size_t define_var(const char *name, size_t n)
-{
-  char buffer[128];
-  int i=0;
-
-  if(n>127) n=127;
-
-  strncpy(buffer,name,n);
-  buffer[n] = '\0';
-
-  for(i=0;i<nvariables;i++)
-  {
-    if( !strcmp(buffer,variables[i].name) ) {
-      return i;
-    }
-  }
-  strcpy(variables[i].name,buffer);
-  variables[i].value = 0;
-  nvariables++;
-  return i;
+int compar_vars(const void *s1, const void *s2) {
+    Variable *v1 = (Variable *)s1;
+    Variable *v2 = (Variable *)s2;
+    return strcmp(v1->name, v2->name);
 }
 
-
-TNumber set_var(size_t idx, TNumber value)
+int predefine_var(const char *name, size_t n)
 {
-  if(idx<nvariables) {
+  if (n>127) n=127;
+
+  Variable needle;
+  strncpy(needle.name, name, n);
+  needle.name[n] = '\0';
+
+  Variable *ptr = bsearch(&needle, variables, nvariables, sizeof(Variable), compar_vars);
+  if (ptr) {
+    long x = ptr - variables;
+    return (int)x;
+  }
+
+  if (nvariables >= MAXVARS)
+      return -1;
+
+  printf("Pre define: %s\n", needle.name);
+
+  needle.value = 0;
+  memcpy(&variables[nvariables], &needle, sizeof(Variable));
+  nvariables++;
+
+  qsort(variables, nvariables, sizeof(Variable), compar_vars);
+
+  return nvariables - 1;
+}
+
+int define_var(const char *name, size_t n)
+{
+  if(n>127) n=127;
+
+  Variable needle;
+  strncpy(needle.name, name, n);
+  needle.name[n] = '\0';
+
+  Variable *ptr = bsearch(&needle, variables, nvariables, sizeof(Variable), compar_vars);
+  if (ptr) {
+    long x = ptr - variables;
+    return (int)x;
+  }
+
+  if (nvariables >= MAXVARS)
+      return -1;
+
+  printf("Defining: %s\n", needle.name);
+
+  needle.value = 0;
+  memcpy(&variables[nvariables], &needle, sizeof(Variable));
+  nvariables++;
+  prepare_vars();
+  return nvariables - 1;
+}
+
+void prepare_vars()
+{
+    printf("Prepare Vars\n");
+    qsort(variables, nvariables, sizeof(Variable), compar_vars);
+    printf("Varlist:\n");
+    int i;
+    for (i = 0; i<nvariables; i++) {
+        printf("\tV %d => %s (%lu)\n", i, variables[i].name, strlen(variables[i].name));
+    }
+}
+
+TNumber set_var(int idx, TNumber value)
+{
+  if(idx >= 0 && idx<nvariables) {
     variables[idx].value = value;
     return variables[idx].value;
   }
   return 0.0;
 }
 
-TNumber get_var(size_t idx) 
+TNumber get_var(int idx) 
 {
-  if(idx<nvariables) {
+  if(idx >= 0 && idx<nvariables) {
     return variables[idx].value;
   }
   return 0.0;
