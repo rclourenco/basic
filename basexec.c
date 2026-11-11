@@ -230,6 +230,53 @@ char *cmdString(int i)
 }
 
 
+long le2num(unsigned char *str, int n)
+{
+    int i;
+    long ac = 0;
+    for (i=0;i<n;i++) {
+        int d = 8*i;
+        ac = ac+(long)(str[i]<<d);
+    }
+    return ac;
+}
+
+void DrawImage(char *filename)
+{
+    if (!filename)
+        return;
+    FILE *fp=fopen(filename, "rb");
+    if (!fp) {
+        basPrintf("Cannot Open %s", filename);
+        return;
+    }
+
+    unsigned char buffer[64];
+    fread(buffer,14,1,fp);
+    //BasPrintf("%c%c\n", buffer[0], buffer[1]);
+    //long fsize = le2num(buffer+2, 4);
+    //basPrintf("Filesize %ld\n", fsize);
+    long offset = le2num(buffer+10, 4);
+    //basPrintf("Offset %ld\n", offset);
+    fseek(fp,offset,SEEK_SET);
+    int x = 0;
+    int y = 0;
+    int count = 0;
+    while(!feof(fp)) {
+        int v = fgetc(fp);
+        DrawPixel(x++,199-y,v);
+        if (x==320) {
+            y++;
+            x=0;
+        }
+        if (y==200)
+            break;
+        count++;
+    }
+    //basPrintf("Count: %d\n", count);
+
+    fclose(fp);
+}
 
 void exec_command(BasCommandNode *x)
 {
@@ -255,7 +302,7 @@ void exec_command(BasCommandNode *x)
 		case cmdBox:  DrawRect(cmdNumber(0, 0), cmdNumber(1, 0), cmdNumber(2, 0), cmdNumber(3,0), cmdNumber(4,0)); break;
 		case cmdCircle: dcircle(cmdNumber(0, 0), cmdNumber(1, 0), cmdNumber(2, 0)); break;
 		case cmdPoint: DrawPixel(cmdNumber(0, 0), cmdNumber(1, 0), cmdNumber(2, 0)); break;
-
+        case cmdImage: DrawImage(cmdString(0)); break;
         default: break;
 	}
 }

@@ -41,6 +41,7 @@ BasCommandDef basCommands[] = {
 	"box",    cmdBox,
 	"circle", cmdCircle,
 	"point",  cmdPoint,
+    "image",  cmdImage,
 	NULL, cmdNone
 };
 

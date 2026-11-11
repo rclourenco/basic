@@ -212,8 +212,8 @@ typedef struct {
 		cmdNone, cmdFre,  cmdCls,   cmdList, 
 		cmdRun,  cmdQuit, cmdColor, cmdLocate,
 	    cmdLoad, cmdSave, cmdFiles, cmdExec,
-		cmdLine, cmdBox,  cmdCircle, cmdPoint
-
+		cmdLine, cmdBox,  cmdCircle, cmdPoint,
+        cmdImage
        	} cmd;
 } BasCommandDef;
 
