@@ -32,8 +32,6 @@ typedef struct{
 #define AND_D 2
 #define OR_D 3
 
-#define PLOT(X,Y,C) screen[(X)+(Y)*320]=C
-#define GETPLOT(X,Y) screen[(X)+(Y)*320]
 #define PI M_PI
 
 #define DEFAULT 0
@@ -81,6 +79,8 @@ void DrawPicB(int x1,int y1,TPicture far *pic);
 void DrawPicF(int x1,int y1,TPicture far *pic);
 int XPRes(TPicture far *pic);
 int YPRes(TPicture far *pic);
+void BlitToScreen(int x1, int y1, int w, int h, unsigned char *img, int tr);
+void BlitFromScreen(int x1,int y1, int w, int h, unsigned char *img);
 
 //instruäes para ecran virtual
 void DefaultScreen();

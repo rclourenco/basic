@@ -714,6 +714,53 @@ void DrawPicB(int x1,int y1,TPicture *pic)
 	}
 }
 
+void BlitToScreen(int x1, int y1, int w, int h, unsigned char *img, int tr)
+{
+	int x2=x1+w-1;
+	int y2=y1+h-1;
+	int x,y;
+
+    if (tr >= 0)
+    {
+    	for(y=y1;y<=y2;y++)
+        {
+    	    for(x=x1;x<=x2;x++)
+	        {
+		        if (*img!=tr) PLOT(x,y,*img);
+		        img++;
+	        }
+        }
+
+        return;
+    }
+
+    for(y=y1;y<=y2;y++)
+    {
+    	for(x=x1;x<=x2;x++)
+	    {
+		    PLOT(x,y,*img);
+		    img++;
+	    }
+    }
+}
+
+void BlitFromScreen(int x1,int y1, int w, int h, unsigned char *img)
+{
+	int cy,cx;
+    int x2 = x1+w-1;
+    int y2 = y1+h-1;
+
+	for(cy=y1;cy<=y2;cy++) {
+	    for(cx=x1;cx<=x2;cx++)
+	    {
+		    *img=GETPLOT(cx,cy);
+		    img++;
+	    }
+    }
+}
+
+
+
 /* ------------------------------------------------------------------ */
 /* Virtual screens                                                    */
 /* ------------------------------------------------------------------ */

@@ -42,6 +42,12 @@ BasCommandDef basCommands[] = {
 	"circle", cmdCircle,
 	"point",  cmdPoint,
     "image",  cmdImage,
+    "sprload", cmdSprLoad,
+    "sprunload", cmdSprUnload,
+    "sprshow", cmdSprShow,
+    "sprhide", cmdSprHide,
+    "sprmove", cmdSprMove,
+    "overscan", cmdOverscan,
 	NULL, cmdNone
 };
 

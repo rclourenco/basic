@@ -278,6 +278,174 @@ void DrawImage(char *filename)
     fclose(fp);
 }
 
+typedef struct {
+    int w, h;
+    unsigned char *bg;
+    unsigned char *img;
+
+    int x,y;
+    int status;
+} Sprite;
+
+#define NUM_SPRITES 16
+
+Sprite sprites[NUM_SPRITES];
+
+int allocSprite(Sprite *sp, int w, int h)
+{
+    size_t lc = w*h;
+    unsigned char *nbg = (unsigned char *)realloc(sp->bg, lc);
+    unsigned char *nimg = (unsigned char *)realloc(sp->img, lc);
+    if (!nbg || !nimg)
+        return -1;
+
+    sp->bg = nbg;
+    sp->img = nimg;
+    sp->w = w;
+    sp->h = h;
+    sp->x = 0;
+    sp->y = 0;
+    sp->status = 0;
+
+    return 0;
+}
+
+void LoadSprite(int n, char *filename)
+{
+    if (n>=NUM_SPRITES) {
+        return;
+    }
+
+    if (!filename)
+        return;
+    FILE *fp=fopen(filename, "rb");
+    if (!fp) {
+        basPrintf("Cannot Open %s", filename);
+        return;
+    }
+
+    unsigned char buffer[64];
+    if(fread(buffer,14,1,fp)==0)
+        goto fail;
+
+//    basPrintf("%c%c\n", buffer[0], buffer[1]);
+    long fsize = le2num(buffer+2, 4);
+//    basPrintf("Filesize %ld\n", fsize);
+    long offset = le2num(buffer+10, 4);
+//    basPrintf("Offset %ld\n", offset);
+
+    if(fread(buffer, 40, 1, fp)==0)
+        goto fail;
+
+    long infosize = le2num(buffer, 4);
+//    basPrintf("InfoHeaderSize: %ld\n", infosize);
+    long width = le2num(buffer+4, 4);
+//    basPrintf("Width: %ld\n", width);
+    long height = le2num(buffer+8, 4);
+//    basPrintf("Height: %ld\n", height);
+
+    long planes = le2num(buffer+12,2);
+//    basPrintf("Planes: %ld\n", planes);
+    long bitCount = le2num(buffer+14,2);
+//    basPrintf("BitCount: %ld\n", bitCount);
+    long compression = le2num(buffer+16,4);
+//    basPrintf("Compression: %ld\n", compression);
+    long imageSize = le2num(buffer+20,4);
+//    basPrintf("ImageSize: %ld\n", imageSize);
+
+
+    fseek(fp,offset,SEEK_SET);
+    int x = 0;
+    int y = 0;
+    int count = 0;
+
+    int pad = width % 4;
+    int w = width+pad;
+
+    Sprite *sp = &sprites[n];
+    if(allocSprite(sp, width, height)<0)
+        goto fail;
+
+    int ofs = 0;
+    int y2 = height - 1;
+
+
+    if (width != 0 && height != 0) {
+        while(!feof(fp)) {
+            int v = fgetc(fp);
+            if (x<width) {
+                ofs = x+(y2 - y)*width;
+                sp->img[ofs] = v;
+            }
+            x++;
+            if (x==w) {
+                y++;
+                x=0;
+            }
+            if (y==height)
+                break;
+            count++;
+        }
+    }
+    
+    //basPrintf("Count: %d\n", count);
+
+fail:
+    fclose(fp);  
+}
+
+void ShowSprite(int n)
+{
+    if (n>=NUM_SPRITES) {
+        return;
+    }
+
+    Sprite *sp = &sprites[n];
+
+    if (sp->status)
+        return;
+
+    BlitFromScreen(sp->x, sp->y, sp->w, sp->h, sp->bg);
+    BlitToScreen(sp->x,sp->y, sp->w, sp->h, sp->img, sp->img[0]);
+    sp->status = 1;
+}
+
+void HideSprite(int n)
+{
+    if (n>=NUM_SPRITES) {
+        return;
+    }
+
+    Sprite *sp = &sprites[n];
+
+    if (!sp->status)
+        return;
+
+
+    BlitToScreen(sp->x,sp->y, sp->w, sp->h, sp->bg, -1);
+    sp->status = 0;
+}
+
+void MoveSprite(int n, int x, int y)
+{
+    if (n>=NUM_SPRITES) {
+        return;
+    }
+
+    Sprite *sp = &sprites[n];
+
+    if (!sp->status)  {
+        sp->x = x;
+        sp->y = y;
+        return;
+    }
+
+    HideSprite(n);
+    sp->x = x;
+    sp->y = y;
+    ShowSprite(n);
+}
+
 void exec_command(BasCommandNode *x)
 {
 	command_args(x);
@@ -291,6 +459,7 @@ void exec_command(BasCommandNode *x)
 #endif
 		case cmdCls:   tt_clear(); break;
 		case cmdColor: tt_color(cmdNumber(0,0)); if (cmdCount > 1) tt_bgcolor(cmdNumber(1,0)); break;
+        case cmdOverscan: SetOverScan(cmdNumber(0, 0)); break;
 		case cmdLocate: tt_locate(cmdNumber(0,0), cmdNumber(1,0)); break;
 		case cmdQuit:  branch=-2;  break;
 		case cmdList:  basedit_list(cmdNumber(0, 0), cmdNumber(1, -1)); break;
@@ -303,6 +472,10 @@ void exec_command(BasCommandNode *x)
 		case cmdCircle: dcircle(cmdNumber(0, 0), cmdNumber(1, 0), cmdNumber(2, 0)); break;
 		case cmdPoint: DrawPixel(cmdNumber(0, 0), cmdNumber(1, 0), cmdNumber(2, 0)); break;
         case cmdImage: DrawImage(cmdString(0)); break;
+        case cmdSprLoad: LoadSprite(cmdNumber(0,0), cmdString(1)); break;
+        case cmdSprMove: MoveSprite(cmdNumber(0,0), cmdNumber(1,0), cmdNumber(2,0)); break;
+        case cmdSprShow: ShowSprite(cmdNumber(0,0)); break;
+        case cmdSprHide: HideSprite(cmdNumber(0,0)); break;
         default: break;
 	}
 }

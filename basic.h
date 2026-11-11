@@ -213,8 +213,10 @@ typedef struct {
 		cmdRun,  cmdQuit, cmdColor, cmdLocate,
 	    cmdLoad, cmdSave, cmdFiles, cmdExec,
 		cmdLine, cmdBox,  cmdCircle, cmdPoint,
-        cmdImage
-       	} cmd;
+        cmdImage, cmdSprLoad, cmdSprUnload,
+        cmdSprShow, cmdSprHide, cmdSprMove,
+        cmdOverscan,
+    } cmd;
 } BasCommandDef;
 
 typedef struct {
