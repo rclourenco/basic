@@ -15,6 +15,7 @@ void BasGosubNodeFree(BasGosubNode *);
 void BasForNodeFree(BasForNode *);
 void BasIfNodeFree(BasIfNode *);
 void BasInputNodeFree(BasInputNode *);
+void BasDimNodeFree(BasDimNode *);
 void BasPrintNodeFree(BasPrintNode *);
 void BasAssignmentNodeFree(BasAssignmentNode *);
 void BasCommandNodeFree(BasCommandNode *);
@@ -80,7 +81,7 @@ void BasNodeFree(BasNode **link) {
 		case BAS_COMMAND:    BasCommandNodeFree((BasCommandNode *)(*link)->data); break;
 		case BAS_INPUT:      BasInputNodeFree((BasInputNode *)(*link)->data); break;
 		case BAS_ASSIGNMENT: BasAssignmentNodeFree((BasAssignmentNode *)(*link)->data); break;
-
+        case BAS_DIM:        BasDimNodeFree((BasDimNode *)(*link)->data); break;
 	}
 	free(*link);
 	*link = NULL;
@@ -154,6 +155,15 @@ BasNode *BasInputNodeCreate(BasNode **link, int ln)
 	n->prompt[0]='\0';
 	n->list=NULL;
 	return BasNodeCreate(link, BAS_INPUT, n, ln);
+}
+
+BasNode *BasDimNodeCreate(BasNode **link, int ln)
+{
+	BasDimNode *n=(BasDimNode *)malloc(sizeof(BasDimNode));
+	if(!n)
+		return NULL;
+	n->vars=NULL;
+	return BasNodeCreate(link, BAS_DIM, n, ln);
 }
 
 BasVarList *BasVarListAdd(BasVarList **link, char *var)
@@ -387,8 +397,9 @@ int BuildPrintBlock(BasNode *n, BasTokenizer *tokenizer)
 	BasExpressionList **link;
 
 	pn->list = NULL;
-	link = &pn->list;	
-	do {
+	link = &pn->list;
+	
+    do {
 		int r;
 		BasExpression *e;
 		BasExpressionList *l;
@@ -485,6 +496,128 @@ void BasInputNodeFree(BasInputNode *f)
 	free(f);
 }
 
+int BuildDimVar(BasDimVarList **vl, char *name, BasTokenizer *tokenizer)
+{
+    BasDimVarList *var;
+	BasToken *t;
+	BasExpressionList **link;
+
+    var = (BasDimVarList *) malloc(sizeof(BasDimVarList));
+    if (!var)
+        return -2;
+ 
+    *vl = var;
+    strncpy(var->name, name, MLEN);
+    var->name[MLEN-1] = '\0';
+
+    var->next = NULL;
+	var->dim_list = NULL;
+	link = &var->dim_list;
+	
+    do {
+		int r;
+		BasExpression *e;
+		BasExpressionList *l;
+	        e = BasExpressionCreate();
+		if (!e)
+			return -4;
+		l = BasExpressionListAdd(link, e);
+		if (!l) {
+			free(e);
+			return -4;
+		}
+		link = &l->next;
+
+		r = BasBuildExpression(e, tokenizer, BAS_EXPR_PRINT);
+		if (r)
+			return r;
+		t=bas_token_get(tokenizer);
+		if (!t)
+			break;
+		switch (t->type) {
+			case TOKEN_COMMA: break;
+			case tokenRight: break;
+			default: return -4;
+		}
+	} while (t && t->type != tokenRight);
+	return 0;
+}
+
+void BasDimVarFree(BasDimVarList *f)
+{
+	BasExpressionListFree(f->dim_list);
+	free(f);
+}
+
+
+int BuildDimBlock(BasNode *n, BasTokenizer *tokenizer)
+{
+	BasDimNode *f = (BasDimNode *)n->data;
+	BasToken *t;
+	BasDimVarList **link;
+	BasDimVarList *c;
+
+	link = &f->vars;
+
+    char varname[MLEN];
+
+	for(;;) {
+		t = bas_token_get(tokenizer);
+		if (!t)
+			return -4;
+		if (t->type!=tokenFunction)
+			return -4;
+
+        strncpy(varname, t->content, MLEN);
+        varname[MLEN-1] = '\0';
+ 
+        t = bas_token_get(tokenizer);
+        if (!t)
+            return -4;
+
+        if (t->type!=tokenLeft)
+            return -4;
+
+        int r = BuildDimVar(link, varname, tokenizer);
+
+        if (r<0)
+            return r;
+
+        if (*link)
+            c = *link;
+        else
+            return -4;
+
+		t = bas_token_get(tokenizer);
+		if (!t)
+			break;
+
+		if (t->type == tokenLine)
+		       	break;
+	
+		if (t->type != tokenComma)
+			return -4;
+
+		link = &c->next;
+	}
+	// printf("Dim Done!\n");
+	return 0;
+}
+
+void BasDimNodeFree(BasDimNode *d)
+{
+    BasDimVarList *c = d->vars;
+    BasDimVarList *t;
+
+    while(c) {
+        t = c->next;
+        BasDimVarFree(c);
+        c = t;
+    }
+
+    free(d);
+}
+
 int BuildAssignmentBlock(BasNode *n, BasToken *current, BasTokenizer *tokenizer)
 {
 	BasAssignmentNode *f = (BasAssignmentNode *)n->data;
@@ -574,7 +707,7 @@ int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type)
 	int ln = -1;
 	int cn = -1;
 	while( (token=bas_token_get(tokenizer)) != NULL ) {
-		if (token->type == tokenNumber) {
+		if (token->type == tokenNumber) { // TODO only if it's the first
 			if (type==BAS_DIRECT)
 				return BAS_STORE;
 			//printf("Number: %s\n", token->content);
@@ -582,10 +715,11 @@ int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type)
 				cn = atoi(token->content);
 			continue;
 		}
+
 		ln = cn;
 		cn = -1; 
 
-		if (token->type == TOKEN_NAME) {
+		if (token->type == TOKEN_NAME || token->type == TOKEN_FUNCTION) {
 			BasNode *n;
 			if(!strcasecmp(token->content, "for")) {
 				if (type==BAS_DIRECT) return -BAS_DIRECT;
@@ -634,6 +768,18 @@ int BasBlock(BasNode **link, BasTokenizer *tokenizer, int type)
 				link = &n->next;
 				{
 					int r=BuildInputBlock(n, tokenizer);
+					if(r) {
+						return r;
+					}
+				}
+			}
+			else if(!strcasecmp(token->content, "dim")) {
+				n = BasDimNodeCreate(link, ln);
+				if(!n)
+					return -2;
+				link = &n->next;
+				{
+					int r=BuildDimBlock(n, tokenizer);
 					if(r) {
 						return r;
 					}
@@ -756,6 +902,8 @@ int BasBuildExpression(BasExpression *e, BasTokenizer *tokenizer, int type)
 	BasTokenItem **link;
 	BasTokenItem *i;
 
+    int open = 0;
+
 	e->list = NULL;
 	link = &e->list;
 	do {
@@ -766,6 +914,17 @@ int BasBuildExpression(BasExpression *e, BasTokenizer *tokenizer, int type)
 			bas_token_back(tokenizer);
 			break;
 		}
+
+        switch(t->type) {
+            case tokenLeft: open++; break;
+            case tokenRight: open--; break;
+            default: break;
+        }
+
+        if (open<0) {
+            bas_token_back(tokenizer);
+            break;
+        }
 
 		
 		switch (type)
@@ -842,7 +1001,6 @@ void BasVarListFree(BasVarList *vl)
 	}
 }
 
-void dump(BasNode *, int);
 void dump_token(BasToken *t);
 
 

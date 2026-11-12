@@ -19,7 +19,9 @@ typedef int TNumber;
 #define MAXTOKENS 100
 
 typedef struct {
-    int dim;
+    int ndim;
+    enum {anone, anumber, astring, achar} type;
+    int  *dims;
     void *data;
 } TArray;
 
@@ -30,7 +32,7 @@ typedef struct {
 	int chr;
     int varp;
     char *vstring;
-    void *array;
+    TArray *array;
   } t;
 } Entry;
 
@@ -92,18 +94,19 @@ typedef struct {
 
 #define TOKEN_ERROR tokenError
 
-#define BAS_FOR 1
-#define BAS_IF  2
+#define BAS_FOR        1
+#define BAS_IF         2
 #define BAS_ASSIGNMENT 3
-#define BAS_EXPR 4
-#define BAS_ELSE 5
-#define BAS_PRINT 6
-#define BAS_INPUT 7
-#define BAS_GOTO  8
-#define BAS_COMMAND 9
-#define BAS_GOSUB 10
-#define BAS_RETURN 11
-#define BAS_DIRECT 100
+#define BAS_EXPR       4
+#define BAS_ELSE       5
+#define BAS_PRINT      6
+#define BAS_INPUT      7
+#define BAS_GOTO       8
+#define BAS_COMMAND    9
+#define BAS_GOSUB      10
+#define BAS_RETURN     11
+#define BAS_DIM        12
+#define BAS_DIRECT     100
 
 #define BAS_STORE  101
 
@@ -203,6 +206,16 @@ typedef struct {
 	BasVarList *list;
 } BasInputNode;
 
+typedef struct BasDimVarList {
+    char name[MLEN];
+    BasExpressionList *dim_list;
+    struct BasDimVarList *next;
+} BasDimVarList;
+
+typedef struct {
+    BasDimVarList *vars;
+} BasDimNode;
+
 typedef struct {
 	char var[MLEN];
 	BasExpression *expr;
@@ -285,5 +298,6 @@ int basedit_load(char *filename);
 int basedit_save(char *filename);
 
 void basedit_files(char *path, char *mask);
+void dump(BasNode *, int);
 
 #endif

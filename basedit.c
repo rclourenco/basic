@@ -444,8 +444,9 @@ void basedit_line()
 				v = basedit_store(ln, (char *)direct_data.buffer);
 			else
 				v = basedit_delete(ln);
-			if (v<0)
+			if (v<0) {
 				basPrintf("Out of memory");
+            }
 		}
 		// BasNodeFree(&rootdirect);
 		return;

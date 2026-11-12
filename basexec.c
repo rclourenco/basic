@@ -189,7 +189,24 @@ void exec_print(BasPrintNode *x, int tab)
 		basPrintf("\n");
 }
 
-Entry cmdArgs[8];
+void exec_dim(BasDimNode *dim)
+{
+    BasDimVarList *vars = dim->vars;
+    while (vars) {
+        basPrintf("Dim Var: %s [", vars->name);
+        BasExpressionList *l = vars->dim_list;
+        while(l) {
+            exec_expression(l->expr);
+            basPrintf(" %d", result.t.number);
+            l = l->next;
+        }
+        basPrintf(" ]\n");
+
+        vars = vars->next;
+    }
+}
+
+Entry cmdArgs[80];
 int cmdCount = 0;
 
 void command_args(BasCommandNode *x)
@@ -197,7 +214,7 @@ void command_args(BasCommandNode *x)
 	BasExpressionList *l = x->list;
 	int i = 0;
 
-	while(l && i<8) {
+	while(l && i<80) {
 		exec_expression(l->expr);
 		cmdArgs[i] = result;
 
@@ -505,7 +522,6 @@ void exec_input(BasInputNode *x, int tab)
 
 void exec_assignment(BasAssignmentNode *x, int tab)
 {
-
 	int i = define_var(x->var, strlen(x->var));
 	exec_expression(x->expr);
 	set_var(i, result);
@@ -599,6 +615,9 @@ void basexec(BasNode *root, int tab)
 				case BAS_COMMAND:
 					exec_command((BasCommandNode *)cur->data);
 					break;
+                case BAS_DIM:
+                    exec_dim((BasDimNode *)cur->data);
+                    break;
 				case BAS_GOTO:
 					branch = ((BasGotoNode *)cur->data)->goline;
 					break;
@@ -976,10 +995,56 @@ TNumber get_number(int idx)
   return 0.0;
 }
 
+Entry get_var(int idx) 
+{
+  if (idx >= 0 && idx<nvariables) {
+      if (variables[idx].value.type == estring) {
+        printf("<< %p\n", variables[idx].value.t.vstring);
+      }
+      return variables[idx].value;
+  }
+  Entry ne;
+  ne.type = enumber;
+  ne.t.number = 0;
+  return ne;
+}
+
+void reset_entry(Entry *e)
+{
+    switch(e->type) {
+        case estring: if (e->t.vstring)  {printf("Free: %s\n", e->t.vstring); free(e->t.vstring);} break;
+        default: break;
+    }
+
+    e->type = enone;
+}
+
+void reset_var(int idx)
+{
+    if (idx < 0 || idx >= nvariables)
+        return;
+
+    Entry e = variables[idx].value;
+    reset_entry(&e);
+}
+
+void set_entry(Entry *d, Entry *o)
+{
+    reset_entry(d);
+    switch (o->type) {
+    case estring:
+        d->t.vstring = strdup(o->t.vstring);
+        d->type = o->type;
+        break;
+    default:
+        *d = *o;
+    }
+}
+
 Entry set_var(int idx, Entry e)
 {
-  if(idx >= 0 && idx<nvariables) {
-    variables[idx].value = e;
+  if (idx >= 0 && idx<nvariables) {
+    set_entry(&variables[idx].value, &e);
     return variables[idx].value;
   }
   Entry ne;
@@ -988,13 +1053,4 @@ Entry set_var(int idx, Entry e)
   return ne;
 }
 
-Entry get_var(int idx) 
-{
-  if (idx >= 0 && idx<nvariables) {
-      return variables[idx].value;
-  }
-  Entry ne;
-  ne.type = enumber;
-  ne.t.number = 0;
-  return ne;
-}
+
