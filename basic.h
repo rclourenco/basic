@@ -19,19 +19,25 @@ typedef int TNumber;
 #define MAXTOKENS 100
 
 typedef struct {
-  enum { enone, evar, enumber, estring, echar } type;
+    int dim;
+    void *data;
+} TArray;
+
+typedef struct {
+  enum { enone, evar, enumber, estring, echar, earray } type;
   union {
     TNumber number;
 	int chr;
     int varp;
     char *vstring;
+    void *array;
   } t;
 } Entry;
 
 
 typedef struct {
   char name[128];
-  TNumber value;
+  Entry value;
 } Variable;
 
 
@@ -55,11 +61,13 @@ typedef enum {
 	tokenComment,
 	tokenSemicolon,
 	tokenUnknown,
-	tokenError
+	tokenError,
+    operatorUnary
 } TokenType;
 
 typedef struct {
   TokenType type;
+  TokenType subtype;
   const char *content;
   unsigned char extra;
   size_t size;
@@ -80,6 +88,7 @@ typedef struct {
 #define TOKEN_COMMA   tokenComma
 #define TOKEN_SEMICOLON tokenSemicolon
 #define TOKEN_FUNCTION  tokenFunction
+#define OPERATOR_UNARY operatorUnary
 
 #define TOKEN_ERROR tokenError
 
@@ -123,6 +132,7 @@ void stream_reader_unget(StreamReader *r, char c);
 
 typedef struct {
 	int type;
+    int subtype;
 	char content[256];
 }BasToken;
 
@@ -237,8 +247,10 @@ extern Variable variables[MAXVARS];
 void prepare_vars();
 int predefine_var(const char *name, size_t n);
 int define_var(const char *name, size_t n);
-TNumber set_var(int idx, TNumber value);
-TNumber get_var(int idx);
+Entry set_var(int idx, Entry value);
+Entry get_var(int idx);
+TNumber set_number(int idx, TNumber value);
+TNumber get_number(int idx);
 
 void iq_init(IndexQueue *iq, size_t max);
 void iq_push(IndexQueue *iq, size_t idx);

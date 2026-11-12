@@ -74,6 +74,7 @@ int basReadline(char *buffer, size_t len)
         return count;
 }
 
+
 void exec_expression(BasExpression *expr)
 {
 	BasTokenItem *ti;
@@ -101,10 +102,10 @@ void exec_for(BasForNode *x, int tab)
 	double counter;
 	int i = define_var(x->counter, sizeof(x->counter));
 	
-	set_var(i, x->start);
+	set_number(i, x->start);
 
 	for (counter=x->start; counter<=x->stop; counter+=x->step) {
-		set_var(i, counter);
+		set_number(i, counter);
 		basexec(x->block, tab+1);
 		if (branch != -1)
 			return;
@@ -119,7 +120,7 @@ void exec_for(BasForNode *x, int tab)
 			}
 		}
 	}
-	set_var(i, counter);
+	set_number(i, counter);
 }
 
 void exec_if(BasIfNode *x, int tab)
@@ -496,7 +497,7 @@ void exec_input(BasInputNode *x, int tab)
 		}
 
 		j = define_var(v->var, strlen(v->var));
-		set_var(j, r);
+		set_number(j, r);
 
 		v = v->next;
 	}
@@ -507,12 +508,7 @@ void exec_assignment(BasAssignmentNode *x, int tab)
 
 	int i = define_var(x->var, strlen(x->var));
 	exec_expression(x->expr);
-	if (result.type==enumber) 
-		set_var(i, result.t.number);
-	else
-	      	set_var(i, 0);	
-
-
+	set_var(i, result);
 }
 
 
@@ -722,7 +718,7 @@ Entry call_function(RpnToken *token, Entry *args, size_t f, size_t n)
       v1 = args[f].t.number;
     }
     else {
-      v1 = get_var(args[f].t.varp);
+      v1 = get_number(args[f].t.varp);
     }
   }
 
@@ -731,7 +727,7 @@ Entry call_function(RpnToken *token, Entry *args, size_t f, size_t n)
       v2 = args[f+1].t.number;
     }
     else {
-      v2 = get_var(args[f+1].t.varp);
+      v2 = get_number(args[f+1].t.varp);
     }
   }
 
@@ -764,18 +760,33 @@ TNumber operation(RpnToken *token, Entry *e1, Entry *e2)
   TNumber v1 = 0;
   TNumber v2 = 0;
 
-  if( e1->type == enumber ) {
-    v1 = e1->t.number;
-  }
-  else {
-    v1 = get_var(e1->t.varp);
+  Entry t1 = *e1;
+
+  if (e1->type == evar) {
+      t1 = get_var(e1->t.varp);
   }
 
-  if( e2->type == enumber ) {
-    v2 = e2->t.number;
+  if (t1.type == enumber) {
+      v1 = t1.t.number;
   }
-  else {
-    v2 = get_var(e2->t.varp);
+
+  if (!e2) {
+      switch(token->content[0]) {
+        case '-': r = -v1; break;
+        case '+': r = v1; break;
+        default: break;
+      }
+      return r;
+  }
+
+  Entry t2 = *e2;
+
+  if(e2->type == evar) {
+      t2 = get_var(e2->t.varp);
+  }
+
+  if( t2.type == enumber ) {
+    v2 = t2.t.number;
   }
 
   switch(token->content[0])
@@ -819,11 +830,19 @@ Entry eval_rpn(RpnToken *tokenlist, IndexQueue *rpn)
         sp++;
         break;
       case tokenOperator:
-        v2 = stack[--sp];
-        v1 = stack[--sp];
-        stack[sp].type = enumber;
-        stack[sp].t.number = operation(&tokenlist[i],&v1,&v2);
-        sp++;
+        if (tokenlist[i].subtype == operatorUnary) {
+            v1 = stack[--sp];
+            stack[sp].type = enumber;
+            stack[sp].t.number = operation(&tokenlist[i],&v1,NULL);
+            sp++;
+        }
+        else {
+            v2 = stack[--sp];
+            v1 = stack[--sp];
+            stack[sp].type = enumber;
+            stack[sp].t.number = operation(&tokenlist[i],&v1,&v2);
+            sp++;
+        }
         break;
       case tokenFunction:
         re = call_function(&tokenlist[i],stack,sp-tokenlist[i].extra,tokenlist[i].extra);
@@ -853,7 +872,7 @@ Entry eval_rpn(RpnToken *tokenlist, IndexQueue *rpn)
     if( stack[sp].type == enumber )
       re.t.number = stack[sp].t.number;
     if( stack[sp].type == evar )
-      re.t.number = get_var(stack[sp].t.varp);
+      re = get_var(stack[sp].t.varp);
 	else
 	  return stack[sp];
   }
@@ -889,7 +908,8 @@ int predefine_var(const char *name, size_t n)
 
   printf("Pre define: %s\n", needle.name);
 
-  needle.value = 0;
+  needle.value.type = enumber;
+  needle.value.t.number = 0;
   memcpy(&variables[nvariables], &needle, sizeof(Variable));
   nvariables++;
 
@@ -917,7 +937,8 @@ int define_var(const char *name, size_t n)
 
   printf("Defining: %s\n", needle.name);
 
-  needle.value = 0;
+  needle.value.type = enumber;
+  needle.value.t.number = 0;
   memcpy(&variables[nvariables], &needle, sizeof(Variable));
   nvariables++;
   prepare_vars();
@@ -935,19 +956,45 @@ void prepare_vars()
     }
 }
 
-TNumber set_var(int idx, TNumber value)
+TNumber set_number(int idx, TNumber value)
 {
   if(idx >= 0 && idx<nvariables) {
-    variables[idx].value = value;
-    return variables[idx].value;
+    variables[idx].value.type = enumber;
+    variables[idx].value.t.number = value;
+    return variables[idx].value.t.number;
   }
   return 0.0;
 }
 
-TNumber get_var(int idx) 
+TNumber get_number(int idx) 
 {
   if(idx >= 0 && idx<nvariables) {
-    return variables[idx].value;
+    if (variables[idx].value.type == enumber) { 
+        return variables[idx].value.t.number;
+    }
   }
   return 0.0;
+}
+
+Entry set_var(int idx, Entry e)
+{
+  if(idx >= 0 && idx<nvariables) {
+    variables[idx].value = e;
+    return variables[idx].value;
+  }
+  Entry ne;
+  ne.type = enumber;
+  ne.t.number = 0;
+  return ne;
+}
+
+Entry get_var(int idx) 
+{
+  if (idx >= 0 && idx<nvariables) {
+      return variables[idx].value;
+  }
+  Entry ne;
+  ne.type = enumber;
+  ne.t.number = 0;
+  return ne;
 }

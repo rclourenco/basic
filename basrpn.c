@@ -48,6 +48,7 @@ int BasToRpnToken(BasTokenItem *input, RpnToken *tokenlist, int max)
 		if (c==max)
 			return -1;
 		tokenlist[c].type = input->token.type;
+        tokenlist[c].subtype = input->token.subtype;
 		tokenlist[c].size = strlen(input->token.content);
 		tokenlist[c].content = input->token.content;
 		tokenlist[c].extra = 0;
@@ -150,6 +151,42 @@ void dump_rpn(IndexQueue *rpn, RpnToken *tokenlist)
   }
 }
 
+// detects unary operators
+void tokenlist_pass(RpnToken *tokenlist, int tn)
+{
+    int 
+        i,
+        s = 0;
+    for(i=0;i<tn;i++)
+    {
+       switch(tokenlist[i].type)
+       {
+           case tokenString:
+           case tokenNumber:
+           case tokenVariable:
+               s = 1;
+               break;
+           case tokenOperator:
+               if (!s) {
+                    tokenlist[i].subtype = OPERATOR_UNARY;
+               }
+               s = 0;
+               break;
+           case tokenComma:
+               s = 0;
+               break;
+           case tokenLeft:
+               s = 0;
+               break;
+           case tokenRight:
+               s = 1;
+               break;
+           default:
+               break;
+       }
+    }
+}
+
 int reverse_polish_notation(RpnToken *tokenlist, int tn, IndexQueue *rpn, IndexQueue *wstk, IndexQueue *fstk)
 {
   int i;
@@ -159,6 +196,9 @@ int reverse_polish_notation(RpnToken *tokenlist, int tn, IndexQueue *rpn, IndexQ
   iq_init(rpn, tn);
   iq_init(wstk,tn);
   iq_init(fstk,tn);
+
+  tokenlist_pass(tokenlist, tn);
+
   for( i = 0; i< tn; i ++)
   {
     switch(tokenlist[i].type)
@@ -263,7 +303,12 @@ char op_p(RpnToken *token)
     break;
     case '-':
     case '+':
-      p = 2;
+        if (token->subtype == operatorUnary) {
+            p = 4;
+        }
+        else {
+            p = 2;
+        }
     break;
 	case '%':
     case '*':
@@ -271,7 +316,7 @@ char op_p(RpnToken *token)
       p = 3;
     break;
     case '^':
-      p = 4;
+      p = 5;
     break;
   }
   return p;

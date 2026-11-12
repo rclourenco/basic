@@ -1333,6 +1333,7 @@ void bas_token_init(BasTokenizer *bt, StreamReader *reader)
 	bt->reader=reader;
 	bt->last.type = TOKEN_NONE;
 	bt->last.content[0]='\0';
+    bt->last.subtype = TOKEN_NONE;
 	bt->before = bt->last;
 	bt->on_hold = 0;
 }
