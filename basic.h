@@ -26,13 +26,19 @@ typedef struct {
 } TArray;
 
 typedef struct {
-  enum { enone, evar, enumber, estring, echar, earray } type;
+    int varp;
+    int index;
+} TArrayIndex;
+
+typedef struct {
+  enum { enone, evar, enumber, estring, echar, earray, earrayindex} type;
   union {
     TNumber number;
 	int chr;
     int varp;
     char *vstring;
     TArray *array;
+    TArrayIndex aidx;
   } t;
 } Entry;
 

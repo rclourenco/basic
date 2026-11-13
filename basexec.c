@@ -16,6 +16,9 @@ int basexec_quit()
 	return branch==-2;
 }
 
+int lookup_var(const char *name);
+void reset_var(int idx);
+
 Entry eval_rpn(RpnToken *tokenlist, IndexQueue *rpn);
 
 Entry result;
@@ -189,20 +192,68 @@ void exec_print(BasPrintNode *x, int tab)
 		basPrintf("\n");
 }
 
+TArray *make_array(int *dims, int ndims, int type)
+{
+    TArray *a = (TArray *)malloc(sizeof(TArray));
+    if (!a)
+        return NULL;
+    a->data = NULL;
+    a->ndim = ndims;
+    a->dims = dims;
+    return a;
+}
+
 void exec_dim(BasDimNode *dim)
 {
     BasDimVarList *vars = dim->vars;
-    while (vars) {
+    for (;vars;vars = vars->next) {
+        int ndims = 0;
         basPrintf("Dim Var: %s [", vars->name);
         BasExpressionList *l = vars->dim_list;
-        while(l) {
+        while (l) {
+            ndims++;
+            l = l->next;
+        }
+        if (ndims<0) {
+            continue;
+        }
+
+        int *dims = (int *)calloc(ndims, sizeof(int));
+        if (!dims)
+            continue;
+
+        int i = 0;
+        l = vars->dim_list;
+        while (l) {
             exec_expression(l->expr);
+            dims[i++]=result.t.number;
             basPrintf(" %d", result.t.number);
             l = l->next;
         }
         basPrintf(" ]\n");
 
-        vars = vars->next;
+        TArray *a = make_array(dims, ndims, anone);
+        if (!a) {
+            free(dims);
+            continue;
+        }
+
+        int vi = predefine_var(vars->name, strlen(vars->name));
+        if (vi<0) {
+            free(a->dims);
+            free(a);
+            continue;
+        }
+
+        // because the variable might be used before
+        // de-allocate any old value
+        reset_var(vi);
+
+        Entry e;
+        memset(&e, 0, sizeof(e));
+        e.type = earray;
+        e.t.array = a;
+        variables[vi].value = e;
     }
 }
 
@@ -732,6 +783,15 @@ Entry call_function(RpnToken *token, Entry *args, size_t f, size_t n)
   strncpy(buffer,token->content,token->size);
   buffer[token->size] = '\0';
 
+  int vi = lookup_var(buffer);
+  if (vi>=0) {
+     Entry e = get_var(vi);
+     if (e.type == earray) {
+        printf("Array Var Referenced\n");
+        return re;
+     }
+  }
+
   if (n>0) {
     if( args[f].type == enumber ) {
       v1 = args[f].t.number;
@@ -749,6 +809,7 @@ Entry call_function(RpnToken *token, Entry *args, size_t f, size_t n)
       v2 = get_number(args[f+1].t.varp);
     }
   }
+
 
   if(!strcmp(buffer,"sin") ) {
      //sin(v1);
@@ -937,6 +998,20 @@ int predefine_var(const char *name, size_t n)
   return nvariables - 1;
 }
 
+int lookup_var(const char *name)
+{
+   Variable needle;
+   strncpy(needle.name, name, 127);
+   needle.name[127] = '\0';
+
+   Variable *ptr = bsearch(&needle, variables, nvariables, sizeof(Variable), compar_vars);
+   if (ptr) {
+      long x = ptr - variables;
+      return (int)x;
+   }
+   return -1;
+}
+
 int define_var(const char *name, size_t n)
 {
   if(n>127) n=127;
@@ -1013,6 +1088,17 @@ void reset_entry(Entry *e)
 {
     switch(e->type) {
         case estring: if (e->t.vstring)  {printf("Free: %s\n", e->t.vstring); free(e->t.vstring);} break;
+        case earray:
+            if (e->t.array) {
+                if (e->t.array->data) {
+                    free(e->t.array->data);
+                }
+                if (e->t.array->dims) {
+                    free(e->t.array->dims);
+                }
+                free(e->t.array);
+            }
+            break;
         default: break;
     }
 
@@ -1034,6 +1120,11 @@ void set_entry(Entry *d, Entry *o)
     switch (o->type) {
     case estring:
         d->t.vstring = strdup(o->t.vstring);
+        d->type = o->type;
+        break;
+    case earray:
+        // TODO copy array
+        d->t.array = o->t.array;
         d->type = o->type;
         break;
     default:
