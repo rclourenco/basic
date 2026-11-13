@@ -18,7 +18,10 @@ int basexec_quit()
 
 int lookup_var(const char *name);
 void reset_var(int idx);
+void set_array_item(Entry *d, int idx, Entry o);
 
+
+Entry eval_rpn_ref(RpnToken *tokenlist, IndexQueue *rpn);
 Entry eval_rpn(RpnToken *tokenlist, IndexQueue *rpn);
 
 Entry result;
@@ -99,6 +102,22 @@ void exec_expression(BasExpression *expr)
 		result = eval_rpn(expr->tlist, &expr->istk);
 	}
 }
+
+Entry exec_left_expression(BasExpression *expr)
+{
+    Entry r;
+	r.type = enone;
+
+	if (!expr)
+		return r;
+	
+	if (expr->istk.size && expr->istk.contents) {
+		return eval_rpn_ref(expr->tlist, &expr->istk);
+	}
+
+    return r;
+}
+
 
 void exec_for(BasForNode *x, int tab)
 {
@@ -573,8 +592,18 @@ void exec_input(BasInputNode *x, int tab)
 
 void exec_assignment(BasAssignmentNode *x, int tab)
 {
-	int i = define_var(x->var, strlen(x->var));
 	exec_expression(x->expr);
+
+    if (x->lexpr) {
+        Entry ref = exec_left_expression(x->lexpr);
+        if (ref.type == earrayindex) {
+            Entry a = get_var(ref.t.aidx.varp);
+            set_array_item(&a, ref.t.aidx.index, result);
+            return;
+        }
+    }
+
+	int i = define_var(x->var, strlen(x->var));
 	set_var(i, result);
 }
 
@@ -767,9 +796,122 @@ TNumber antof(const char *src, size_t n)
   return aton(buffer);
 }
 
+int array_calc_length(TArray *a)
+{
+    if (!a)
+        return -1;
+    if (!a->dims)
+        return -1;
+    int t = 0;
+    int j;
+
+    for(j=0;j<a->ndim;j++) {
+        if (j==0) {
+            t = a->dims[j];
+            continue;
+        }
+        t = t*a->dims[j];
+    }
+
+    return t;
+}
+
+int array_check_bound(TArray *a, int i)
+{
+    if (!a)
+        return -1;
+ 
+    int t = 0;
+    int j;
+    for(j=0;j<a->ndim;j++) {
+        if (j==0) {
+            t = a->dims[j];
+            continue;
+        }
+
+        t = t*a->dims[j];
+    }
+
+    if (i<t)
+        return i;
+
+    return -1;
+}
+
+Entry resolve_indirect(Entry *ie)
+{
+    Entry de;
+
+    de.type = enumber;
+    de.t.number = 0;
+
+    if (ie->type == evar) {
+        de = get_var(ie->t.varp);
+        return de;
+    }
+
+    if (ie->type != earrayindex) {
+        return *ie;
+    }
+
+    Entry v = get_var(ie->t.aidx.varp);
+    if (v.type != earray) {
+        return de;
+    }
+
+    int index = array_check_bound(v.t.array, ie->t.aidx.index);
+
+    switch (v.t.array->type) {
+        case anumber:
+            if (v.t.array->data && index >= 0) {
+                TNumber *data = (TNumber *)v.t.array->data;
+                de.t.number = data[index];
+                de.type = enumber;
+                return de;
+            }
+        break;
+        default:
+        break;
+    }
+
+    return de;
+}
 
 int sp = 0; 
 Entry stack[MAXTOKENS];
+
+Entry func_array_index(int varp, TArray *a, Entry *args, size_t n)
+{
+  Entry re;
+  re.type = earrayindex;
+  re.t.aidx.varp = varp;
+  int i;
+  int calc_idx = -1;
+  if (!a->dims)
+      n = 0;
+
+  if (n!=a->ndim)
+      n = 0;
+
+  for (i=0;i<n;i++) {
+    Entry iv = resolve_indirect(&args[i]); 
+    if (iv.type != enumber)
+        continue;
+ 
+    int cdim = a->dims[i];
+    int cidx = iv.t.number;
+
+    if (cidx >= cdim) {
+        calc_idx = -1;
+        break;
+    }
+
+    calc_idx = i == 0 ? cidx : calc_idx + a->dims[i-1]*cidx;
+  }
+  re.t.aidx.index = calc_idx;
+  return re;
+
+}
 
 Entry call_function(RpnToken *token, Entry *args, size_t f, size_t n)
 {
@@ -787,29 +929,22 @@ Entry call_function(RpnToken *token, Entry *args, size_t f, size_t n)
   if (vi>=0) {
      Entry e = get_var(vi);
      if (e.type == earray) {
-        printf("Array Var Referenced\n");
-        return re;
+        printf("Array Var Referenced [%s] f: %lu n: %lu\n", buffer, f, n);
+        return func_array_index(vi, e.t.array, args+f, n);
      }
   }
 
   if (n>0) {
-    if( args[f].type == enumber ) {
-      v1 = args[f].t.number;
-    }
-    else {
-      v1 = get_number(args[f].t.varp);
-    }
+      Entry e = resolve_indirect(&args[f]);
+      if (e.type == enumber)
+          v1 = e.t.number;
   }
 
-  if(n>1) {
-    if( args[f+1].type == enumber ) {
-      v2 = args[f+1].t.number;
-    }
-    else {
-      v2 = get_number(args[f+1].t.varp);
-    }
+  if (n>1) {
+      Entry e = resolve_indirect(&args[f+1]);
+      if (e.type == enumber)
+          v2 = e.t.number;
   }
-
 
   if(!strcmp(buffer,"sin") ) {
      //sin(v1);
@@ -840,11 +975,7 @@ TNumber operation(RpnToken *token, Entry *e1, Entry *e2)
   TNumber v1 = 0;
   TNumber v2 = 0;
 
-  Entry t1 = *e1;
-
-  if (e1->type == evar) {
-      t1 = get_var(e1->t.varp);
-  }
+  Entry t1 = resolve_indirect(e1);
 
   if (t1.type == enumber) {
       v1 = t1.t.number;
@@ -859,11 +990,7 @@ TNumber operation(RpnToken *token, Entry *e1, Entry *e2)
       return r;
   }
 
-  Entry t2 = *e2;
-
-  if(e2->type == evar) {
-      t2 = get_var(e2->t.varp);
-  }
+  Entry t2 = resolve_indirect(e2);
 
   if( t2.type == enumber ) {
     v2 = t2.t.number;
@@ -888,7 +1015,8 @@ TNumber operation(RpnToken *token, Entry *e1, Entry *e2)
 }
 
 
-Entry eval_rpn(RpnToken *tokenlist, IndexQueue *rpn)
+// do not resolve resulting reference (variables simple or array)
+Entry eval_rpn_ref(RpnToken *tokenlist, IndexQueue *rpn)
 {
   int j;
   Entry v1,v2;
@@ -949,17 +1077,25 @@ Entry eval_rpn(RpnToken *tokenlist, IndexQueue *rpn)
 
   if( sp > 0 ) {
     sp--;
+    return stack[sp];
+    /*
     if( stack[sp].type == enumber )
       re.t.number = stack[sp].t.number;
     if( stack[sp].type == evar )
       re = get_var(stack[sp].t.varp);
 	else
 	  return stack[sp];
+     */
   }
  
   return re;
 }
 
+Entry eval_rpn(RpnToken *tokenlist, IndexQueue *rpn)
+{
+    Entry rv = eval_rpn_ref(tokenlist, rpn);
+    return resolve_indirect(&rv);
+}
 
 Variable variables[MAXVARS];
 
@@ -1144,4 +1280,41 @@ Entry set_var(int idx, Entry e)
   return ne;
 }
 
+void set_array_item(Entry *d, int idx, Entry o)
+{
+    if (d->type != earray)
+        return;
+    
+    TArray *a = d->t.array;
+    if (!a)
+        return;
+ 
+    int len = array_calc_length(a);
+    if (len<1)
+        return;
 
+    if (idx >= len)
+        return;
+
+    if (a->data == NULL) {
+        switch(o.type) {
+        case enumber:
+            a->data=calloc(len, sizeof(TNumber));
+            a->type = anumber;
+            break;
+        default:
+            break;
+        }
+    }
+
+    switch (a->type) {
+        case anumber:
+            if (o.type == enumber) {
+                TNumber *x = a->data;
+                x[idx] = o.t.number;
+            }
+        break;
+        default:
+        break;
+    }
+}

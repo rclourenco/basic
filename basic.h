@@ -123,6 +123,7 @@ typedef struct {
 #define BAS_EXPR_FOR_START 4
 #define BAS_EXPR_FOR_TO    5
 #define BAS_EXPR_FOR_STEP  6
+#define BAS_EXPR_ASSIGN_LEFT   7
 
 int read_line(FILE *fp, char *buffer, size_t len);
 
@@ -224,6 +225,7 @@ typedef struct {
 
 typedef struct {
 	char var[MLEN];
+    BasExpression *lexpr;
 	BasExpression *expr;
 } BasAssignmentNode;
 

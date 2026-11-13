@@ -624,10 +624,31 @@ int BuildAssignmentBlock(BasNode *n, BasToken *current, BasTokenizer *tokenizer)
 	BasToken *t;
 	int r;
 
+    f->lexpr = NULL;
+    f->var[0]='\0';
+    f->expr = NULL;
+
 	if (current != NULL && current->type==tokenVariable) {
 		strncpy(f->var, current->content, MLEN-1);
 		f->var[MLEN-1]='\0';
 	}
+
+    if (current->type == tokenFunction) {
+
+		strncpy(f->var, current->content, MLEN-1);
+		f->var[MLEN-1]='\0';
+
+        bas_token_back(tokenizer);
+
+    	f->lexpr = BasExpressionCreate();
+	    if (!f->lexpr)
+		    return -4;
+
+	    r = BasBuildExpression(f->lexpr, tokenizer, BAS_EXPR_ASSIGN_LEFT);
+	    if (r)
+		    return r;
+
+    }
 
 	t=bas_token_expect_operator(tokenizer, "=");
 	if(!t) {
@@ -654,7 +675,12 @@ int BuildAssignmentBlock(BasNode *n, BasToken *current, BasTokenizer *tokenizer)
 
 void BasAssignmentNodeFree(BasAssignmentNode *f)
 {
-	BasExpressionFree(f->expr);
+    if (f->lexpr)
+        BasExpressionFree(f->lexpr);
+    
+    if (f->expr)
+	    BasExpressionFree(f->expr);
+
 	free(f);
 }
 
@@ -910,6 +936,7 @@ int BasBuildExpression(BasExpression *e, BasTokenizer *tokenizer, int type)
 		t=bas_token_get(tokenizer);
 		if (!t)
 			break;
+
 		if (t->type==TOKEN_LINE) {
 			bas_token_back(tokenizer);
 			break;
@@ -926,22 +953,30 @@ int BasBuildExpression(BasExpression *e, BasTokenizer *tokenizer, int type)
             break;
         }
 
-		
-		switch (type)
-		{
-		case BAS_EXPR_IF:
-			if (t->type == TOKEN_NAME && !strcasecmp(t->content, "then")) {
-				bas_token_back(tokenizer);
-				goto next;
-			}
-			break;
-		case BAS_EXPR_PRINT:
-			if (t->type == TOKEN_COMMA || t->type == TOKEN_SEMICOLON) {
-				bas_token_back(tokenizer);
-				goto next;
-			}
-			break;
-		}
+
+        if (open==0) {
+		    switch (type)
+		    {
+		    case BAS_EXPR_IF:
+			    if (t->type == TOKEN_NAME && !strcasecmp(t->content, "then")) {
+				    bas_token_back(tokenizer);
+				    goto next;
+			    }
+			    break;
+		    case BAS_EXPR_PRINT:
+			    if (t->type == TOKEN_COMMA || t->type == TOKEN_SEMICOLON) {
+				    bas_token_back(tokenizer);
+				    goto next;
+			    }
+			    break;
+            case BAS_EXPR_ASSIGN_LEFT:
+                if (t->type == tokenOperator) {
+				    bas_token_back(tokenizer);
+				    goto next;
+                }
+                break;
+		    }
+        }
 
 		i = BasTokenItemAdd(link, t);
 		if (!i)
