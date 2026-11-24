@@ -5,6 +5,9 @@
 #include "basic.h"
 #include "graphics.h"
 
+void dump_expr(BasExpression *expr);
+
+
 int syswritechar(int c);
 int syswritechar_raw(int c);
 
@@ -229,6 +232,14 @@ BasTokenItem *BasTokenItemAdd(BasTokenItem **link, BasToken *t)
 int BuildForBlock(BasNode *n, BasTokenizer *tokenizer)
 {
 	BasForNode *f = (BasForNode *)n->data;
+    f->start_expr = NULL;
+    f->stop_expr = NULL;
+    f->step_expr = NULL;
+    f->start = 0.0;
+    f->stop = 0.0;
+    f->step = 1.0;
+    int r;
+
 	BasToken *t;
 	t=bas_token_expect(tokenizer, TOKEN_NAME);
 	if (!t) {
@@ -244,24 +255,26 @@ int BuildForBlock(BasNode *n, BasTokenizer *tokenizer)
 		return -4;
 	}
 
-	t=bas_token_expect(tokenizer, TOKEN_NUM);
-	if(!t) {
+    f->start_expr = BasExpressionCreate();
+	if (!f->start_expr)
 		return -4;
-	}
 
-	f->start=atof(t->content);
-
+	r = BasBuildExpression(f->start_expr, tokenizer, BAS_EXPR_FOR_START);
+	if (r)
+		return r;
+ 
 	t=bas_token_expect_name(tokenizer, "to");
 	if(!t) {
 		return -4;
 	}
 
-	t=bas_token_expect(tokenizer, TOKEN_NUM);
-	if(!t) {
+    f->stop_expr = BasExpressionCreate();
+	if (!f->stop_expr)
 		return -4;
-	}
 
-	f->stop=atof(t->content);
+	r = BasBuildExpression(f->stop_expr, tokenizer, BAS_EXPR_FOR_TO);
+	if (r)
+		return r;
 
 	t=bas_token_get(tokenizer);
 	if(!t) {
@@ -277,12 +290,14 @@ int BuildForBlock(BasNode *n, BasTokenizer *tokenizer)
 		return -4;
 	}
 
-	t=bas_token_expect(tokenizer, TOKEN_NUM);
-	if(!t) {
+    f->step_expr = BasExpressionCreate();
+	if (!f->step_expr)
 		return -4;
-	}
-	f->step=atof(t->content);
 
+	r = BasBuildExpression(f->step_expr, tokenizer, BAS_EXPR_FOR_STEP);
+	if (r)
+		return r;
+ 
 	t=bas_token_expect(tokenizer, TOKEN_LINE);
 	if(!t) {
 		return -4;
@@ -295,6 +310,13 @@ for_block:
 
 void BasForNodeFree(BasForNode *f)
 {
+    if (f->start_expr)
+        BasExpressionFree(f->start_expr);
+    if (f->stop_expr)
+        BasExpressionFree(f->stop_expr);
+    if (f->step_expr)
+        BasExpressionFree(f->step_expr);
+
 	BasNodeFree(&f->block);
 	free(f);
 }
@@ -957,6 +979,18 @@ int BasBuildExpression(BasExpression *e, BasTokenizer *tokenizer, int type)
         if (open==0) {
 		    switch (type)
 		    {
+            case BAS_EXPR_FOR_START:
+                if (t->type == TOKEN_NAME && !strcasecmp(t->content, "to")) {
+                    bas_token_back(tokenizer);
+                    goto next;
+                }
+                break;
+            case BAS_EXPR_FOR_TO:
+                if (t->type == TOKEN_NAME && !strcasecmp(t->content, "step")) {
+                    bas_token_back(tokenizer);
+                    goto next;
+                }
+                break;              
 		    case BAS_EXPR_IF:
 			    if (t->type == TOKEN_NAME && !strcasecmp(t->content, "then")) {
 				    bas_token_back(tokenizer);
@@ -1199,6 +1233,8 @@ void dump(BasNode *root, int tab)
 				case BAS_GOTO:
 					dump_goto((BasGotoNode *)cur->data, tab);
 				break;
+                default:
+                    printf("#unknown %d\n", cur->type);
 			}
 			cur = cur->next;
 		}

@@ -315,6 +315,7 @@ int basedit_run(int start)
 	i = BasBlock(&rootdirect, &tokenizer, 0);
 
 	if (i==0 && rootdirect) {
+        dump(rootdirect, 0);
         prepare_vars();
 		tt_putchar(10);
 		basexec(rootdirect, 0);

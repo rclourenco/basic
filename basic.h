@@ -187,6 +187,9 @@ typedef struct BasExpressionList {
 
 typedef struct {
 	char counter[MLEN];
+    BasExpression *start_expr;
+    BasExpression *stop_expr;
+    BasExpression *step_expr;
 	double start;
 	double stop;
 	double step;

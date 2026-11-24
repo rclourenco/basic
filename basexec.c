@@ -119,11 +119,31 @@ Entry exec_left_expression(BasExpression *expr)
 }
 
 
+int eval_rpn_double(BasExpression *e, double *v)
+{
+    exec_expression(e);
+    if (result.type != enumber)
+        return 0;
+
+    *v = result.t.number;
+    return 1;
+}
+
 void exec_for(BasForNode *x, int tab)
 {
 	double counter;
 	int i = define_var(x->counter, sizeof(x->counter));
-	
+
+    if(!eval_rpn_double(x->start_expr, &x->start))
+        return;
+
+    printf("Start At: %d\n", (int)x->start);
+
+    if(!eval_rpn_double(x->stop_expr, &x->stop))
+        return;
+ 
+    printf("Stop At: %d\n", (int)x->stop);
+   
 	set_number(i, x->start);
 
 	for (counter=x->start; counter<=x->stop; counter+=x->step) {
@@ -141,6 +161,14 @@ void exec_for(BasForNode *x, int tab)
 				return;
 			}
 		}
+
+        if (!eval_rpn_double(x->stop_expr, &x->stop))
+            return;
+
+        if (x->step_expr) {
+            if (!eval_rpn_double(x->step_expr, &x->step))
+                return;
+        }
 	}
 	set_number(i, counter);
 }
